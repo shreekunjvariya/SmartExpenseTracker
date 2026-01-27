@@ -1,0 +1,153 @@
+{
+  "identity": {
+    "name": "E1 - The Anti-AI Designer",
+    "mission": "Create a finance app that feels like a Swiss watch—precise, elegant, and devoid of generic SaaS tropes.",
+    "principles": [
+      "Fusion over Imitation: Mix Swiss typography with Organic textures.",
+      "Content is King: Data is the hero, UI is the stage.",
+      "Negative Space: Luxury is defined by what isn't there.",
+      "Asymmetry: Create tension to guide the eye."
+    ]
+  },
+  "typography": {
+    "fonts": {
+      "heading": {
+        "family": "Chivo, sans-serif",
+        "weights": ["900", "700"],
+        "usage": "Landing page headlines, major dashboard sections. Tight tracking (-0.02em)."
+      },
+      "body": {
+        "family": "Public Sans, sans-serif",
+        "weights": ["400", "500", "600"],
+        "usage": "General text, UI labels, form inputs."
+      },
+      "mono": {
+        "family": "JetBrains Mono, monospace",
+        "weights": ["400", "500"],
+        "usage": "Financial data, transaction IDs, code snippets."
+      }
+    },
+    "scale": {
+      "h1": "text-5xl md:text-7xl font-black tracking-tighter leading-none",
+      "h2": "text-3xl md:text-5xl font-bold tracking-tight",
+      "h3": "text-2xl font-bold tracking-tight",
+      "body_lg": "text-lg leading-relaxed",
+      "body_base": "text-base leading-relaxed text-muted-foreground",
+      "caption": "text-xs uppercase tracking-widest font-semibold text-muted-foreground"
+    }
+  },
+  "colors": {
+    "theme": "light",
+    "palette": {
+      "primary": {
+        "name": "Deep Forest",
+        "hex": "#064E3B",
+        "tailwind": "bg-[#064E3B] text-white hover:bg-[#064E3B]/90"
+      },
+      "secondary": {
+        "name": "Stone Mist",
+        "hex": "#F3F4F6",
+        "tailwind": "bg-[#F3F4F6] text-[#1F2937]"
+      },
+      "accent": {
+        "name": "Electric Lime",
+        "hex": "#D9F99D",
+        "tailwind": "bg-[#D9F99D] text-[#064E3B]"
+      },
+      "background": {
+        "light": "#FFFFFF",
+        "dark": "#0A0A0A"
+      },
+      "surface": {
+        "light": "#F8F9FA",
+        "dark": "#171717"
+      },
+      "semantic": {
+        "income": "#10B981",
+        "expense": "#F43F5E",
+        "investment": "#8B5CF6"
+      }
+    },
+    "gradients": {
+      "hero": "bg-gradient-to-br from-[#F3F4F6] via-[#FFFFFF] to-[#D9F99D]/20",
+      "card_hover": "hover:bg-gradient-to-br hover:from-white hover:to-[#F3F4F6]"
+    }
+  },
+  "layout": {
+    "grid_system": {
+      "dashboard": "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6",
+      "landing": "grid grid-cols-1 md:grid-cols-12 gap-y-12 md:gap-x-8"
+    },
+    "spacing": {
+      "container_padding": "p-6 md:p-8 lg:p-12",
+      "section_gap": "gap-8 md:gap-12",
+      "element_gap": "gap-4"
+    },
+    "containers": {
+      "card": "bg-card border border-border/40 shadow-sm hover:shadow-md transition-all duration-300",
+      "glass": "bg-white/70 dark:bg-black/60 backdrop-blur-xl border border-white/20 shadow-sm"
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "rounded-full px-8 py-6 text-base font-bold shadow-[0_4px_14px_0_rgba(6,78,59,0.39)] hover:shadow-[0_6px_20px_rgba(6,78,59,0.23)] hover:-translate-y-0.5 transition-all",
+      "secondary": "rounded-full px-8 py-6 text-base font-medium border-2 border-[#E5E7EB] bg-transparent hover:bg-[#F3F4F6] text-[#1F2937] transition-all",
+      "ghost": "rounded-lg px-4 py-2 text-sm font-medium hover:bg-[#F3F4F6] text-[#4B5563]"
+    },
+    "inputs": {
+      "default": "h-12 rounded-lg border-2 border-[#E5E7EB] bg-[#F9FAFB] px-4 text-base focus:border-[#064E3B] focus:ring-0 transition-colors",
+      "search": "pl-10 bg-[#F3F4F6] border-transparent focus:bg-white focus:border-[#E5E7EB]"
+    },
+    "cards": {
+      "dashboard": "rounded-xl border border-[#E5E7EB] bg-white p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.08)] transition-shadow",
+      "feature": "rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB] p-8 hover:bg-white transition-colors"
+    }
+  },
+  "visual_enhancers": {
+    "borders": "border border-[#E5E7EB]",
+    "shadows": {
+      "soft": "shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)]",
+      "sharp": "shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+    },
+    "textures": "bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03]"
+  },
+  "assets": {
+    "images": [
+      {
+        "category": "hero_background",
+        "url": "https://images.unsplash.com/photo-1759668358583-09cdcae2ba36?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "description": "Minimalist workspace with laptop and coffee, high key lighting."
+      },
+      {
+        "category": "feature_mobile_user",
+        "url": "https://images.unsplash.com/photo-1769069920214-732c93825209?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "description": "Professional using smartphone with city view, conveying mobility."
+      },
+      {
+        "category": "feature_workspace",
+        "url": "https://images.unsplash.com/photo-1758608631036-7a2370684905?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "description": "Clean wooden desk setup, conveying organization."
+      }
+    ],
+    "icons": {
+      "library": "lucide-react",
+      "style": "stroke-width={1.5} className='text-[#064E3B]'"
+    }
+  },
+  "motion": {
+    "transitions": "transition-all duration-300 ease-out",
+    "hover_lift": "hover:-translate-y-1",
+    "page_enter": "animate-in fade-in slide-in-from-bottom-4 duration-500"
+  },
+  "universal_guidelines": [
+    "DO NOT use 'Inter' for headings. Use 'Chivo'.",
+    "DO NOT use generic blue for primary actions. Use 'Deep Forest Green'.",
+    "DO NOT center text by default. Left align for readability.",
+    "ALWAYS add 'data-testid' to interactive elements.",
+    "Use 'sonner' for toasts.",
+    "Use 'recharts' or 'shadcn/ui charts' for data visualization.",
+    "Ensure all text has sufficient contrast (APCA/WCAG AA).",
+    "Mobile-first responsive design is mandatory."
+  ],
+  "instructions_to_main_agent": "You are building a high-precision finance tool. The code must be as clean as the design. Use the provided image URLs for the landing page. Implement the 'Bento' grid for the dashboard. Ensure the 'Deep Forest' green is the dominant brand color, used sparingly for impact, not flooding the screen."
+}
