@@ -1,0 +1,22 @@
+
+<div class="p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+  <ui-card *ngFor="let stat of stats">
+    <ui-card-header>
+      <ui-card-title>{{ stat.label }}</ui-card-title>
+    </ui-card-header>
+    <ui-card-content>
+      <div class="text-3xl font-bold">{{ stat.value }}</div>
+    </ui-card-content>
+  </ui-card>
+</div>
+<div class="p-8">
+  <ui-card>
+    <ui-card-header>
+      <ui-card-title>Monthly Summary</ui-card-title>
+    </ui-card-header>
+    <ui-card-content>
+      <pre>{{ summary | json }}</pre>
+    </ui-card-content>
+  </ui-card>
+</div>
+  

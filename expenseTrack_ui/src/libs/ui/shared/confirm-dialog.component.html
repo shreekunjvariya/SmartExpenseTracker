@@ -1,0 +1,8 @@
+<ui-modal [open]="open">
+  <div modal-title class="font-bold text-lg mb-2">{{ title }}</div>
+  <div modal-content class="mb-4">{{ message }}</div>
+  <div modal-actions>
+    <button class="btn btn-outline mr-2" (click)="cancel.emit()">Cancel</button>
+    <button class="btn btn-error" (click)="confirm.emit()">Confirm</button>
+  </div>
+</ui-modal>

@@ -1,0 +1,15 @@
+
+<aside class="w-64 bg-gray-100 h-full p-4 flex flex-col">
+  <div class="mb-8">
+    <h2 class="font-bold text-lg">ExpenseTrack</h2>
+  </div>
+  <nav class="flex-1">
+    <a routerLink="/dashboard" routerLinkActive="active" class="block py-2">Dashboard</a>
+    <a routerLink="/expenses" routerLinkActive="active" class="block py-2">Expenses</a>
+    <a routerLink="/categories" routerLinkActive="active" class="block py-2">Categories</a>
+    <a routerLink="/reports" routerLinkActive="active" class="block py-2">Reports</a>
+    <a routerLink="/settings" routerLinkActive="active" class="block py-2">Settings</a>
+  </nav>
+  <button (click)="logout()" class="mt-8 btn btn-outline w-full">Logout</button>
+</aside>
+  

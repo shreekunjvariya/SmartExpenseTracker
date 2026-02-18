@@ -1,0 +1,34 @@
+
+<form [formGroup]="form" (ngSubmit)="onSubmit()" class="max-w-sm mx-auto mt-12 p-6 bg-white rounded shadow">
+  <h2 class="text-xl font-bold mb-4">Register</h2>
+  <div class="mb-4">
+    <label>Name</label>
+    <input formControlName="name" class="input input-bordered w-full" />
+    <div *ngIf="form.get('name')?.invalid && form.get('name')?.touched" class="text-red-500 text-xs">Name required</div>
+  </div>
+  <div class="mb-4">
+    <label>Email</label>
+    <input formControlName="email" type="email" class="input input-bordered w-full" />
+    <div *ngIf="form.get('email')?.invalid && form.get('email')?.touched" class="text-red-500 text-xs">Valid email required</div>
+  </div>
+  <div class="mb-4">
+    <label>Password</label>
+    <input formControlName="password" type="password" class="input input-bordered w-full" />
+    <div *ngIf="form.get('password')?.invalid && form.get('password')?.touched" class="text-red-500 text-xs">Password required</div>
+  </div>
+  <div class="mb-4">
+    <label>Profile Type</label>
+    <select formControlName="profile_type" class="input input-bordered w-full">
+      <option value="salaried">Salaried</option>
+      <option value="self-employed">Self-employed</option>
+      <option value="businessman">Businessman</option>
+    </select>
+  </div>
+  <div class="mb-4">
+    <label>Preferred Currency</label>
+    <input formControlName="preferred_currency" class="input input-bordered w-full" />
+  </div>
+  <button type="submit" class="btn btn-primary w-full" [disabled]="form.invalid || loading">Register</button>
+  <div *ngIf="error" class="text-red-600 mt-2">{{ error }}</div>
+</form>
+  

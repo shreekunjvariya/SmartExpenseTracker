@@ -1,0 +1,36 @@
+
+<div class="p-8 max-w-lg mx-auto">
+  <ui-card>
+    <ui-card-header>
+      <ui-card-title>Profile Settings</ui-card-title>
+    </ui-card-header>
+    <ui-card-content>
+      <form [formGroup]="form" (ngSubmit)="onSubmit()">
+        <div class="mb-4">
+          <label>Name</label>
+          <input formControlName="name" class="input input-bordered w-full" />
+        </div>
+        <div class="mb-4">
+          <label>Email</label>
+          <input formControlName="email" type="email" class="input input-bordered w-full" />
+        </div>
+        <div class="mb-4">
+          <label>Profile Type</label>
+          <select formControlName="profile_type" class="input input-bordered w-full">
+            <option value="salaried">Salaried</option>
+            <option value="self-employed">Self-employed</option>
+            <option value="businessman">Businessman</option>
+          </select>
+        </div>
+        <div class="mb-4">
+          <label>Preferred Currency</label>
+          <input formControlName="preferred_currency" class="input input-bordered w-full" />
+        </div>
+        <button type="submit" class="btn btn-primary w-full" [disabled]="form.invalid || loading">Update</button>
+        <div *ngIf="error" class="text-red-600 mt-2">{{ error }}</div>
+        <div *ngIf="success" class="text-green-600 mt-2">Profile updated!</div>
+      </form>
+    </ui-card-content>
+  </ui-card>
+</div>
+  

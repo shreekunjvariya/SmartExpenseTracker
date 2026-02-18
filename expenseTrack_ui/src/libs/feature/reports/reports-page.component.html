@@ -1,0 +1,18 @@
+
+<div class="p-8">
+  <ui-card>
+    <ui-card-header>
+      <ui-card-title>Reports</ui-card-title>
+    </ui-card-header>
+    <ui-card-content>
+      <div class="mb-4">
+        <button class="btn btn-primary mr-2" (click)="selectPeriod('week')">Week</button>
+        <button class="btn btn-outline mr-2" (click)="selectPeriod('month')">Month</button>
+        <button class="btn btn-outline" (click)="selectPeriod('year')">Year</button>
+      </div>
+      <pre>{{ summary | json }}</pre>
+      <!-- Export/Import UI would go here -->
+    </ui-card-content>
+  </ui-card>
+</div>
+  
