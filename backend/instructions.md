@@ -143,6 +143,10 @@ backend/
 4. Ensure MongoDB is running at the address in `.env`.
 5. Start the server:
    ```cmd
+   .\venv\Scripts\python.exe -m uvicorn server:app --reload --host 127.0.0.1 --port 8000
+   ```
+   or
+   ```cmd
    uvicorn server:app --reload --host 0.0.0.0 --port 8000
    ```
 6. Access API docs at: http://localhost:8000/docs

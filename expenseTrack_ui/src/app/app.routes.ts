@@ -8,11 +8,12 @@ import { ExpensesPageComponent } from '../libs/feature/expenses/expenses-page.co
 import { CategoriesPageComponent } from '../libs/feature/categories-page/categories-page.component';
 import { ReportsPageComponent } from '../libs/feature/reports/reports-page.component';
 import { SettingsPageComponent } from '../libs/feature/settings/settings-page.component';
+import { ProtectedLayoutComponent } from '../libs/ui/layout/protected-layout.component';
 
 export const appRoutes: Route[] = [
-	{
-		path: '',
-		component: LandingPageComponent,
+  {
+    path: '',
+    component: LandingPageComponent,
 	},
 	{
 		path: 'login',
@@ -22,29 +23,35 @@ export const appRoutes: Route[] = [
 		path: 'register',
 		component: RegisterPageComponent,
 	},
-	{
-		path: 'dashboard',
-		component: DashboardPageComponent,
-		canActivate: [authGuard],
-	},
-	{
-		path: 'expenses',
-		component: ExpensesPageComponent,
-		canActivate: [authGuard],
-	},
-	{
-		path: 'categories',
-		component: CategoriesPageComponent,
-		canActivate: [authGuard],
-	},
-	{
-		path: 'reports',
-		component: ReportsPageComponent,
-		canActivate: [authGuard],
-	},
-	{
-		path: 'settings',
-		component: SettingsPageComponent,
-		canActivate: [authGuard],
-	},
+  {
+    path: '',
+    component: ProtectedLayoutComponent,
+    canActivate: [authGuard],
+    children: [
+      {
+        path: 'dashboard',
+        component: DashboardPageComponent,
+      },
+      {
+        path: 'expenses',
+        component: ExpensesPageComponent,
+      },
+      {
+        path: 'categories',
+        component: CategoriesPageComponent,
+      },
+      {
+        path: 'reports',
+        component: ReportsPageComponent,
+      },
+      {
+        path: 'settings',
+        component: SettingsPageComponent,
+      },
+    ],
+  },
+  {
+    path: '**',
+    redirectTo: '',
+  },
 ];

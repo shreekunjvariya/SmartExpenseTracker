@@ -1,6 +1,6 @@
 import { Component, OnInit, inject } from '@angular/core';
-import { CategoriesService } from '../../data-access/categories/categories.service';
 import { FormBuilder, Validators } from '@angular/forms';
+import { CategoriesService } from '../../data-access/categories/categories.service';
 import { Category } from '../../../models';
 
 @Component({
@@ -11,76 +11,209 @@ import { Category } from '../../../models';
 })
 export class CategoriesPageComponent implements OnInit {
   private categoriesService = inject(CategoriesService);
+  private fb = inject(FormBuilder);
+
   categories: Category[] = [];
-  modalOpen = false;
-  confirmOpen = false;
-  editing = false;
-  selected: Category | null = null;
-  form = inject(FormBuilder).group({
+  loading = true;
+  categoryDialogOpen = false;
+  subDialogOpen = false;
+  editingCategory: Category | null = null;
+  selectedCategoryId: string | null = null;
+  expandedCategories: Record<string, boolean> = {};
+  savingCategory = false;
+  savingSubcategory = false;
+  error = '';
+  success = '';
+
+  readonly presetColors = [
+    '#064E3B',
+    '#10B981',
+    '#F59E0B',
+    '#8B5CF6',
+    '#EF4444',
+    '#3B82F6',
+    '#EC4899',
+    '#14B8A6',
+  ];
+
+  categoryForm = this.fb.nonNullable.group({
     name: ['', Validators.required],
-    type: ['expense', Validators.required],
+    icon: ['folder', Validators.required],
     color: ['#064E3B', Validators.required],
-    icon: ['']
   });
 
-  ngOnInit() {
-    this.categoriesService.list().subscribe(data => this.categories = data);
+  subcategoryForm = this.fb.nonNullable.group({
+    name: ['', Validators.required],
+    icon: ['tag', Validators.required],
+  });
+
+  ngOnInit(): void {
+    this.fetchCategories();
   }
 
-  openAdd() {
-    this.editing = false;
-    this.selected = null;
-    this.form.reset({ name: '', type: 'expense', color: '#064E3B', icon: '' });
-    this.modalOpen = true;
-  }
-
-  edit(category: Category) {
-    this.editing = true;
-    this.selected = category;
-    this.form.patchValue(category);
-    this.modalOpen = true;
-  }
-
-  closeModal() {
-    this.modalOpen = false;
-  }
-
-  onSubmit() {
-    if (this.form.invalid) return;
-    const raw = this.form.getRawValue();
-    const value: Partial<Category> = {
-      name: raw.name ?? '',
-      type: raw.type as Category['type'],
-      color: raw.color ?? '#064E3B',
-      icon: raw.icon ?? '',
-    };
-    if (this.editing && this.selected) {
-      this.categoriesService.update(this.selected.category_id, value).subscribe(() => {
-        Object.assign(this.selected, value);
-        this.modalOpen = false;
-      });
-    } else {
-      this.categoriesService.create(value).subscribe(cat => {
-        this.categories.push(cat);
-        this.modalOpen = false;
-      });
+  get selectedCategoryName(): string {
+    if (!this.selectedCategoryId) {
+      return '';
     }
+    return this.categories.find((category) => category.category_id === this.selectedCategoryId)?.name || '';
   }
 
-  confirmDelete(category: Category) {
-    this.selected = category;
-    this.confirmOpen = true;
+  openAddCategoryDialog(): void {
+    this.editingCategory = null;
+    this.categoryDialogOpen = true;
+    this.categoryForm.reset({
+      name: '',
+      icon: 'folder',
+      color: '#064E3B',
+    });
   }
 
-  deleteCategory() {
-    if (!this.selected) return;
-    this.categoriesService.delete(this.selected.category_id).subscribe(() => {
-      this.categories = this.categories.filter(c => c !== this.selected);
-      this.confirmOpen = false;
-      this.selected = null;
+  openEditCategoryDialog(category: Category): void {
+    this.editingCategory = category;
+    this.categoryDialogOpen = true;
+    this.categoryForm.reset({
+      name: category.name,
+      icon: category.icon || 'folder',
+      color: category.color || '#064E3B',
+    });
+  }
+
+  closeCategoryDialog(): void {
+    this.categoryDialogOpen = false;
+    this.editingCategory = null;
+    this.savingCategory = false;
+  }
+
+  saveCategory(): void {
+    if (this.categoryForm.invalid || this.savingCategory) {
+      this.categoryForm.markAllAsTouched();
+      return;
+    }
+
+    this.savingCategory = true;
+    this.error = '';
+    this.success = '';
+
+    const payload = this.categoryForm.getRawValue();
+    const request$ = this.editingCategory
+      ? this.categoriesService.update(this.editingCategory.category_id, payload)
+      : this.categoriesService.create(payload);
+
+    request$.subscribe({
+      next: () => {
+        this.success = this.editingCategory ? 'Category updated.' : 'Category created.';
+        this.closeCategoryDialog();
+        this.fetchCategories();
+      },
+      error: () => {
+        this.error = 'Failed to save category.';
+        this.savingCategory = false;
+      },
+    });
+  }
+
+  deleteCategory(category: Category): void {
+    const confirmed = window.confirm(
+      'Are you sure? This will also delete all expenses in this category.'
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    this.error = '';
+    this.success = '';
+
+    this.categoriesService.delete(category.category_id).subscribe({
+      next: () => {
+        this.success = 'Category deleted.';
+        this.fetchCategories();
+      },
+      error: () => {
+        this.error = 'Failed to delete category.';
+      },
+    });
+  }
+
+  openSubcategoryDialog(categoryId: string): void {
+    this.selectedCategoryId = categoryId;
+    this.subDialogOpen = true;
+    this.subcategoryForm.reset({
+      name: '',
+      icon: 'tag',
+    });
+  }
+
+  closeSubcategoryDialog(): void {
+    this.subDialogOpen = false;
+    this.selectedCategoryId = null;
+    this.savingSubcategory = false;
+  }
+
+  saveSubcategory(): void {
+    if (!this.selectedCategoryId || this.subcategoryForm.invalid || this.savingSubcategory) {
+      this.subcategoryForm.markAllAsTouched();
+      return;
+    }
+
+    this.savingSubcategory = true;
+    this.error = '';
+    this.success = '';
+
+    const payload = this.subcategoryForm.getRawValue();
+    this.categoriesService.addSubcategory(this.selectedCategoryId, payload).subscribe({
+      next: () => {
+        this.success = 'Subcategory added.';
+        this.closeSubcategoryDialog();
+        this.fetchCategories();
+      },
+      error: () => {
+        this.error = 'Failed to add subcategory.';
+        this.savingSubcategory = false;
+      },
+    });
+  }
+
+  deleteSubcategory(categoryId: string, subcategoryId: string): void {
+    const confirmed = window.confirm('Are you sure you want to delete this subcategory?');
+    if (!confirmed) {
+      return;
+    }
+
+    this.error = '';
+    this.success = '';
+
+    this.categoriesService.deleteSubcategory(categoryId, subcategoryId).subscribe({
+      next: () => {
+        this.success = 'Subcategory deleted.';
+        this.fetchCategories();
+      },
+      error: () => {
+        this.error = 'Failed to delete subcategory.';
+      },
+    });
+  }
+
+  toggleExpanded(categoryId: string): void {
+    this.expandedCategories[categoryId] = !this.expandedCategories[categoryId];
+  }
+
+  setColor(color: string): void {
+    this.categoryForm.patchValue({ color });
+  }
+
+  private fetchCategories(): void {
+    this.loading = true;
+    this.error = '';
+
+    this.categoriesService.list().subscribe({
+      next: (categories) => {
+        this.categories = categories;
+        this.loading = false;
+      },
+      error: () => {
+        this.error = 'Failed to load categories.';
+        this.loading = false;
+      },
     });
   }
 }
-
-
-

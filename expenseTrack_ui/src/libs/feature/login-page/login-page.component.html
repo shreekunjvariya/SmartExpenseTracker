@@ -1,17 +1,70 @@
+<div class="auth-page" data-testid="login-page">
+  <div class="auth-form-column">
+    <a routerLink="/" class="brand">
+      <span class="brand-logo">ET</span>
+      <span class="brand-text">ExpenseTrack</span>
+    </a>
 
-<form [formGroup]="form" (ngSubmit)="onSubmit()" class="max-w-sm mx-auto mt-12 p-6 bg-white rounded shadow">
-  <h2 class="text-xl font-bold mb-4">Login</h2>
-  <div class="mb-4">
-    <label>Email</label>
-    <input formControlName="email" type="email" class="input input-bordered w-full" />
-    <div *ngIf="form.get('email')?.invalid && form.get('email')?.touched" class="text-red-500 text-xs">Valid email required</div>
+    <div class="panel">
+      <h1>Welcome Back</h1>
+      <p class="subtext">Sign in to continue managing your expenses</p>
+
+      <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+        <div class="field">
+          <label for="email">Email</label>
+          <input
+            id="email"
+            type="email"
+            formControlName="email"
+            placeholder="you@example.com"
+            data-testid="email-input"
+          />
+          <small *ngIf="form.controls.email.invalid && form.controls.email.touched">
+            Valid email is required.
+          </small>
+        </div>
+
+        <div class="field">
+          <label for="password">Password</label>
+          <input
+            id="password"
+            type="password"
+            formControlName="password"
+            placeholder="Enter your password"
+            data-testid="password-input"
+          />
+          <small *ngIf="form.controls.password.invalid && form.controls.password.touched">
+            Password is required.
+          </small>
+        </div>
+
+        <button
+          type="submit"
+          class="submit-btn"
+          [disabled]="loading"
+          data-testid="login-submit-btn"
+        >
+          {{ loading ? 'Signing in...' : 'Sign In' }}
+        </button>
+      </form>
+
+      <p class="switch-link">
+        Don't have an account?
+        <a routerLink="/register" data-testid="register-link">Create one</a>
+      </p>
+
+      <p class="error" *ngIf="error">{{ error }}</p>
+    </div>
   </div>
-  <div class="mb-4">
-    <label>Password</label>
-    <input formControlName="password" type="password" class="input input-bordered w-full" />
-    <div *ngIf="form.get('password')?.invalid && form.get('password')?.touched" class="text-red-500 text-xs">Password required</div>
+
+  <div class="auth-visual-column">
+    <img
+      src="https://images.unsplash.com/photo-1769069920214-732c93825209?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"
+      alt="Finance background"
+    />
+    <div class="overlay">
+      <h2>Track Every Penny</h2>
+      <p>Get detailed spending insights and make better financial decisions.</p>
+    </div>
   </div>
-  <button type="submit" class="btn btn-primary w-full" [disabled]="form.invalid || loading">Login</button>
-  <div *ngIf="error" class="text-red-600 mt-2">{{ error }}</div>
-</form>
-  
+</div>

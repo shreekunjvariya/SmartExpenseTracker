@@ -1,36 +1,114 @@
+<div class="page" data-testid="settings-page">
+  <header class="page-header">
+    <h1>Settings</h1>
+    <p>Manage your account preferences</p>
+  </header>
 
-<div class="p-8 max-w-lg mx-auto">
-  <ui-card>
-    <ui-card-header>
-      <ui-card-title>Profile Settings</ui-card-title>
-    </ui-card-header>
-    <ui-card-content>
-      <form [formGroup]="form" (ngSubmit)="onSubmit()">
-        <div class="mb-4">
-          <label>Name</label>
-          <input formControlName="name" class="input input-bordered w-full" />
-        </div>
-        <div class="mb-4">
-          <label>Email</label>
-          <input formControlName="email" type="email" class="input input-bordered w-full" />
-        </div>
-        <div class="mb-4">
-          <label>Profile Type</label>
-          <select formControlName="profile_type" class="input input-bordered w-full">
-            <option value="salaried">Salaried</option>
-            <option value="self-employed">Self-employed</option>
-            <option value="businessman">Businessman</option>
-          </select>
-        </div>
-        <div class="mb-4">
-          <label>Preferred Currency</label>
-          <input formControlName="preferred_currency" class="input input-bordered w-full" />
-        </div>
-        <button type="submit" class="btn btn-primary w-full" [disabled]="form.invalid || loading">Update</button>
-        <div *ngIf="error" class="text-red-600 mt-2">{{ error }}</div>
-        <div *ngIf="success" class="text-green-600 mt-2">Profile updated!</div>
-      </form>
-    </ui-card-content>
-  </ui-card>
+  <p class="error" *ngIf="error">{{ error }}</p>
+  <p class="success" *ngIf="success">{{ success }}</p>
+
+  <section class="card">
+    <h2>Profile Settings</h2>
+    <form [formGroup]="form" (ngSubmit)="saveSettings()">
+      <div class="field">
+        <label for="name">Display Name</label>
+        <input id="name" type="text" formControlName="name" data-testid="settings-name-input" />
+      </div>
+
+      <div class="field">
+        <label for="email">Email Address</label>
+        <input id="email" type="email" [value]="user?.email || ''" disabled />
+        <small>Email cannot be changed</small>
+      </div>
+
+      <div class="field">
+        <label for="profileType">Profile Type</label>
+        <select id="profileType" formControlName="profile_type" data-testid="settings-profile-type">
+          <option *ngFor="let type of profileTypes" [value]="type.value">{{ type.label }}</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="currency">Preferred Currency</label>
+        <select id="currency" formControlName="preferred_currency" data-testid="settings-currency">
+          <option *ngFor="let currency of currencies" [value]="currency.code">
+            {{ currency.symbol }} {{ currency.name }} ({{ currency.code }})
+          </option>
+        </select>
+      </div>
+
+      <button type="submit" class="btn-primary" [disabled]="loading" data-testid="settings-save-btn">
+        {{ loading ? 'Saving...' : 'Save Changes' }}
+      </button>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Account Info</h2>
+    <div class="info-row">
+      <span>User ID</span>
+      <strong>{{ user?.user_id || '-' }}</strong>
+    </div>
+    <div class="info-row">
+      <span>Profile Type</span>
+      <strong>{{ user?.profile_type?.replace('_', ' ') || '-' }}</strong>
+    </div>
+    <div class="info-row">
+      <span>Currency</span>
+      <strong>{{ user?.preferred_currency || '-' }}</strong>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Currency Converter</h2>
+
+    <div class="converter-grid">
+      <div class="field">
+        <label for="amount">Amount</label>
+        <input
+          id="amount"
+          type="number"
+          [(ngModel)]="converterAmount"
+          [ngModelOptions]="{ standalone: true }"
+          data-testid="converter-amount"
+        />
+      </div>
+
+      <div class="field">
+        <label for="fromCurrency">From</label>
+        <select
+          id="fromCurrency"
+          [(ngModel)]="fromCurrency"
+          [ngModelOptions]="{ standalone: true }"
+          data-testid="converter-from"
+        >
+          <option *ngFor="let currency of currencies" [value]="currency.code">{{ currency.code }}</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="toCurrency">To</label>
+        <select
+          id="toCurrency"
+          [(ngModel)]="toCurrency"
+          [ngModelOptions]="{ standalone: true }"
+          data-testid="converter-to"
+        >
+          <option *ngFor="let currency of currencies" [value]="currency.code">{{ currency.code }}</option>
+        </select>
+      </div>
+    </div>
+
+    <button type="button" class="btn-primary" (click)="convertCurrency()" [disabled]="converting || !converterAmount" data-testid="convert-btn">
+      {{ converting ? 'Converting...' : 'Convert' }}
+    </button>
+
+    <p class="error inline" *ngIf="convertError">{{ convertError }}</p>
+
+    <div class="result" *ngIf="convertResult">
+      <p>Result</p>
+      <strong>{{ convertResult.converted_amount | number:'1.2-2' }} {{ convertResult.to }}</strong>
+      <small>Rate: 1 {{ convertResult.from }} = {{ convertResult.rate | number:'1.4-4' }} {{ convertResult.to }}</small>
+    </div>
+  </section>
 </div>
-  
