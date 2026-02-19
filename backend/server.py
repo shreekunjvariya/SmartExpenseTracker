@@ -27,10 +27,18 @@ db = client[os.environ['DB_NAME']]
 JWT_SECRET = os.environ.get('JWT_SECRET', 'expense-tracker-secret-key-2024')
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_DAYS = 7
+COOKIE_SECURE = os.environ.get('COOKIE_SECURE', 'false').lower() == 'true'
+COOKIE_SAMESITE = os.environ.get('COOKIE_SAMESITE', 'lax').lower()
+if COOKIE_SAMESITE not in {"lax", "strict", "none"}:
+    COOKIE_SAMESITE = "lax"
 
 
 # CORS origins from environment or default to local frontend
-cors_origins = os.environ.get('CORS_ORIGINS', 'http://localhost:3000').split(',')
+cors_origins = [
+    origin.strip()
+    for origin in os.environ.get('CORS_ORIGINS', 'http://localhost:3000').split(',')
+    if origin.strip()
+]
 
 # Create the main app
 app = FastAPI(title="Expense Tracker API")
@@ -365,8 +373,8 @@ async def register(user_data: UserCreate, response: Response):
         key="session_token",
         value=token,
         httponly=True,
-        secure=True,
-        samesite="none",
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
         path="/",
         max_age=JWT_EXPIRATION_DAYS * 24 * 60 * 60
     )
@@ -397,8 +405,8 @@ async def login(credentials: UserLogin, response: Response):
         key="session_token",
         value=token,
         httponly=True,
-        secure=True,
-        samesite="none",
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
         path="/",
         max_age=JWT_EXPIRATION_DAYS * 24 * 60 * 60
     )
@@ -431,7 +439,12 @@ async def logout(request: Request, response: Response):
     if session_token:
         await db.user_sessions.delete_one({"session_token": session_token})
     
-    response.delete_cookie(key="session_token", path="/")
+    response.delete_cookie(
+        key="session_token",
+        path="/",
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE
+    )
     return {"message": "Logged out successfully"}
 
 @api_router.put("/auth/profile")
@@ -901,15 +914,6 @@ async def get_dashboard_stats(user: User = Depends(get_current_user)):
 
 # Include the router
 app.include_router(api_router)
-
-# CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
