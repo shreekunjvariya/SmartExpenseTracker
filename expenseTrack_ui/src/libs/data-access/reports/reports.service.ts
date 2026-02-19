@@ -2,21 +2,22 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../../src/environments/environment';
 import { Observable } from 'rxjs';
+import { ReportSummary } from '../../../models';
 
 @Injectable({ providedIn: 'root' })
 export class ReportsService {
   private http = inject(HttpClient);
   private api = environment.apiBaseUrl + '/reports';
 
-  getSummary(period: string): Observable<any> {
-    return this.http.get(`${this.api}/summary?period=${period}`);
+  getSummary(period: 'week' | 'month' | 'year'): Observable<ReportSummary> {
+    return this.http.get<ReportSummary>(`${this.api}/summary?period=${period}`);
   }
 
-  export(start: string, end: string): Observable<Blob> {
+  exportCsv(start: string, end: string): Observable<Blob> {
     return this.http.get(`${this.api}/export?start_date=${start}&end_date=${end}`, { responseType: 'blob' });
   }
 
-  import(data: any): Observable<any> {
-    return this.http.post(`${this.api}/import`, data);
+  importCsv(csv_data: string): Observable<{ imported: number; errors: string[] }> {
+    return this.http.post<{ imported: number; errors: string[] }>(`${this.api}/import`, { csv_data });
   }
 }

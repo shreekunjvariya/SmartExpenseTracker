@@ -13,11 +13,7 @@ export class ExpensesService {
     return this.http.get<Expense[]>(this.api);
   }
 
-  get(id: string): Observable<Expense> {
-    return this.http.get<Expense>(`${this.api}/${id}`);
-  }
-
-  create(expense: Partial<Expense>): Observable<Expense> {
+  create(expense: Omit<Expense, 'expense_id' | 'user_id' | 'created_at'>): Observable<Expense> {
     return this.http.post<Expense>(this.api, expense);
   }
 

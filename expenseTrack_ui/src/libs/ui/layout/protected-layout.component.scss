@@ -1,1 +1,17 @@
 
+.protected-shell {
+  min-height: 100vh;
+  background: #f8f9fa;
+}
+
+.protected-content {
+  min-height: 100vh;
+  padding-top: 64px;
+}
+
+@media (min-width: 1024px) {
+  .protected-content {
+    margin-left: 260px;
+    padding-top: 0;
+  }
+}

@@ -1,1 +1,163 @@
 
+.page {
+  padding: 1.3rem;
+  display: grid;
+  gap: 0.9rem;
+  max-width: 860px;
+}
+
+.page-header h1 {
+  margin: 0;
+  font-size: clamp(1.8rem, 4vw, 2.2rem);
+  letter-spacing: -0.02em;
+}
+
+.page-header p {
+  margin: 0.25rem 0 0;
+  color: #64748b;
+}
+
+.error,
+.success {
+  padding: 0.7rem 0.85rem;
+  border-radius: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.error {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.success {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.error.inline {
+  margin-top: 0.8rem;
+}
+
+.card {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.95rem;
+  background: #fff;
+  padding: 1rem;
+}
+
+.card h2 {
+  margin: 0 0 0.9rem;
+  font-size: 1.15rem;
+}
+
+.field {
+  margin-bottom: 0.8rem;
+}
+
+.field label {
+  display: inline-block;
+  margin-bottom: 0.35rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.field input,
+.field select {
+  width: 100%;
+  border: 1px solid #d1d5db;
+  border-radius: 0.6rem;
+  padding: 0.62rem 0.72rem;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+  background: #fff;
+}
+
+.field input:disabled {
+  background: #f8fafc;
+  color: #64748b;
+}
+
+.field small {
+  display: block;
+  margin-top: 0.25rem;
+  color: #64748b;
+  font-size: 0.75rem;
+}
+
+.btn-primary {
+  border: 0;
+  border-radius: 0.7rem;
+  background: #064e3b;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 0.62rem 0.95rem;
+  cursor: pointer;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #043d2f;
+}
+
+.btn-primary:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  border-bottom: 1px solid #eef2f7;
+  padding: 0.6rem 0;
+}
+
+.info-row:last-child {
+  border-bottom: 0;
+}
+
+.info-row span {
+  color: #64748b;
+}
+
+.converter-grid {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.result {
+  margin-top: 0.9rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  background: #f8fafc;
+  padding: 0.8rem;
+}
+
+.result p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.78rem;
+}
+
+.result strong {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 1.4rem;
+}
+
+.result small {
+  display: block;
+  margin-top: 0.3rem;
+  color: #64748b;
+}
+
+@media (min-width: 768px) {
+  .page {
+    padding: 1.8rem;
+  }
+
+  .converter-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

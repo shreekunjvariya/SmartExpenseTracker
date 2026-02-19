@@ -1,7 +1,7 @@
 
-<div class="flex min-h-screen">
-  <sidebar></sidebar>
-  <div class="flex-1 bg-stone-50">
+<div class="protected-shell">
+  <sidebar [user]="user$ | async"></sidebar>
+  <div class="protected-content">
     <router-outlet></router-outlet>
   </div>
 </div>

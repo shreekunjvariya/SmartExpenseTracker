@@ -1,15 +1,106 @@
 
-<aside class="w-64 bg-gray-100 h-full p-4 flex flex-col">
-  <div class="mb-8">
-    <h2 class="font-bold text-lg">ExpenseTrack</h2>
+<button
+  type="button"
+  class="mobile-menu-btn"
+  (click)="toggleMobile()"
+  data-testid="mobile-menu-btn"
+>
+  {{ mobileOpen ? 'X' : '☰' }}
+</button>
+
+<div
+  class="mobile-overlay"
+  *ngIf="mobileOpen"
+  (click)="closeMobile()"
+></div>
+
+<aside class="sidebar mobile" [class.open]="mobileOpen">
+  <div class="brand">
+    <a routerLink="/dashboard" class="brand-link">
+      <span class="brand-logo">ET</span>
+      <span class="brand-text">ExpenseTrack</span>
+    </a>
   </div>
-  <nav class="flex-1">
-    <a routerLink="/dashboard" routerLinkActive="active" class="block py-2">Dashboard</a>
-    <a routerLink="/expenses" routerLinkActive="active" class="block py-2">Expenses</a>
-    <a routerLink="/categories" routerLinkActive="active" class="block py-2">Categories</a>
-    <a routerLink="/reports" routerLinkActive="active" class="block py-2">Reports</a>
-    <a routerLink="/settings" routerLinkActive="active" class="block py-2">Settings</a>
+
+  <nav class="menu">
+    <a
+      *ngFor="let item of menuItems"
+      [routerLink]="item.path"
+      routerLinkActive="active"
+      [routerLinkActiveOptions]="{ exact: true }"
+      class="menu-link"
+      [attr.data-testid]="item.testId"
+    >
+      <span class="menu-icon">{{ item.icon }}</span>
+      <span>{{ item.label }}</span>
+    </a>
   </nav>
-  <button (click)="logout()" class="mt-8 btn btn-outline w-full">Logout</button>
+
+  <div class="user-panel">
+    <div class="user-summary">
+      <div class="avatar">
+        <img *ngIf="user?.picture" [src]="user?.picture ?? ''" [alt]="user?.name ?? 'User'" />
+        <span *ngIf="!user?.picture">{{ userInitial }}</span>
+      </div>
+      <div class="user-text">
+        <p class="user-name">{{ user?.name || 'User' }}</p>
+        <p class="user-email">{{ user?.email || '' }}</p>
+      </div>
+    </div>
+    <button
+      type="button"
+      class="logout-btn"
+      (click)="logout()"
+      [disabled]="loggingOut"
+      data-testid="logout-btn"
+    >
+      {{ loggingOut ? 'Signing Out...' : 'Sign Out' }}
+    </button>
+  </div>
+</aside>
+
+<aside class="sidebar desktop">
+  <div class="brand">
+    <a routerLink="/dashboard" class="brand-link">
+      <span class="brand-logo">ET</span>
+      <span class="brand-text">ExpenseTrack</span>
+    </a>
+  </div>
+
+  <nav class="menu">
+    <a
+      *ngFor="let item of menuItems"
+      [routerLink]="item.path"
+      routerLinkActive="active"
+      [routerLinkActiveOptions]="{ exact: true }"
+      class="menu-link"
+      [attr.data-testid]="item.testId"
+    >
+      <span class="menu-icon">{{ item.icon }}</span>
+      <span>{{ item.label }}</span>
+    </a>
+  </nav>
+
+  <div class="user-panel">
+    <div class="user-summary">
+      <div class="avatar">
+        <img *ngIf="user?.picture" [src]="user?.picture ?? ''" [alt]="user?.name ?? 'User'" />
+        <span *ngIf="!user?.picture">{{ userInitial }}</span>
+      </div>
+      <div class="user-text">
+        <p class="user-name">{{ user?.name || 'User' }}</p>
+        <p class="user-email">{{ user?.email || '' }}</p>
+      </div>
+    </div>
+    <button
+      type="button"
+      class="logout-btn"
+      (click)="logout()"
+      [disabled]="loggingOut"
+      data-testid="logout-btn"
+    >
+      {{ loggingOut ? 'Signing Out...' : 'Sign Out' }}
+    </button>
+  </div>
 </aside>
   

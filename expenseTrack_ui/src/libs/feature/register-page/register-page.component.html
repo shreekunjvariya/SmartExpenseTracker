@@ -1,34 +1,96 @@
+<div class="auth-page" data-testid="register-page">
+  <div class="auth-visual-column">
+    <img
+      src="https://images.unsplash.com/photo-1758608631036-7a2370684905?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"
+      alt="Finance background"
+    />
+    <div class="overlay">
+      <h2>Smart Expense Management</h2>
+      <p>Get profile-based categories and start tracking right away.</p>
+    </div>
+  </div>
 
-<form [formGroup]="form" (ngSubmit)="onSubmit()" class="max-w-sm mx-auto mt-12 p-6 bg-white rounded shadow">
-  <h2 class="text-xl font-bold mb-4">Register</h2>
-  <div class="mb-4">
-    <label>Name</label>
-    <input formControlName="name" class="input input-bordered w-full" />
-    <div *ngIf="form.get('name')?.invalid && form.get('name')?.touched" class="text-red-500 text-xs">Name required</div>
+  <div class="auth-form-column">
+    <a routerLink="/" class="brand">
+      <span class="brand-logo">ET</span>
+      <span class="brand-text">ExpenseTrack</span>
+    </a>
+
+    <div class="panel">
+      <h1>Create Account</h1>
+      <p class="subtext">Start your journey to financial clarity</p>
+
+      <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+        <div class="field">
+          <label for="name">Full Name</label>
+          <input
+            id="name"
+            type="text"
+            formControlName="name"
+            placeholder="John Doe"
+            data-testid="name-input"
+          />
+          <small *ngIf="form.controls.name.invalid && form.controls.name.touched">Name is required.</small>
+        </div>
+
+        <div class="field">
+          <label for="email">Email</label>
+          <input
+            id="email"
+            type="email"
+            formControlName="email"
+            placeholder="you@example.com"
+            data-testid="email-input"
+          />
+          <small *ngIf="form.controls.email.invalid && form.controls.email.touched">Valid email is required.</small>
+        </div>
+
+        <div class="field">
+          <label for="password">Password</label>
+          <input
+            id="password"
+            type="password"
+            formControlName="password"
+            placeholder="At least 6 characters"
+            data-testid="password-input"
+          />
+          <small *ngIf="form.controls.password.invalid && form.controls.password.touched">
+            Password must be at least 6 characters.
+          </small>
+        </div>
+
+        <div class="field">
+          <label for="profile_type">Profile Type</label>
+          <select id="profile_type" formControlName="profile_type" data-testid="profile-type-select">
+            <option *ngFor="let profile of profileOptions" [value]="profile.value">{{ profile.label }}</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="preferred_currency">Preferred Currency</label>
+          <select id="preferred_currency" formControlName="preferred_currency" data-testid="currency-select">
+            <option *ngFor="let currency of currencyOptions" [value]="currency.code">
+              {{ currency.symbol }} {{ currency.name }} ({{ currency.code }})
+            </option>
+          </select>
+        </div>
+
+        <button
+          type="submit"
+          class="submit-btn"
+          [disabled]="loading"
+          data-testid="register-submit-btn"
+        >
+          {{ loading ? 'Creating account...' : 'Create Account' }}
+        </button>
+      </form>
+
+      <p class="switch-link">
+        Already have an account?
+        <a routerLink="/login" data-testid="login-link">Sign in</a>
+      </p>
+
+      <p class="error" *ngIf="error">{{ error }}</p>
+    </div>
   </div>
-  <div class="mb-4">
-    <label>Email</label>
-    <input formControlName="email" type="email" class="input input-bordered w-full" />
-    <div *ngIf="form.get('email')?.invalid && form.get('email')?.touched" class="text-red-500 text-xs">Valid email required</div>
-  </div>
-  <div class="mb-4">
-    <label>Password</label>
-    <input formControlName="password" type="password" class="input input-bordered w-full" />
-    <div *ngIf="form.get('password')?.invalid && form.get('password')?.touched" class="text-red-500 text-xs">Password required</div>
-  </div>
-  <div class="mb-4">
-    <label>Profile Type</label>
-    <select formControlName="profile_type" class="input input-bordered w-full">
-      <option value="salaried">Salaried</option>
-      <option value="self-employed">Self-employed</option>
-      <option value="businessman">Businessman</option>
-    </select>
-  </div>
-  <div class="mb-4">
-    <label>Preferred Currency</label>
-    <input formControlName="preferred_currency" class="input input-bordered w-full" />
-  </div>
-  <button type="submit" class="btn btn-primary w-full" [disabled]="form.invalid || loading">Register</button>
-  <div *ngIf="error" class="text-red-600 mt-2">{{ error }}</div>
-</form>
-  
+</div>

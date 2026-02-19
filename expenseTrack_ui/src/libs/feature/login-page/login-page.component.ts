@@ -12,24 +12,29 @@ import { Router } from '@angular/router';
 export class LoginPageComponent {
   private auth = inject(AuthService);
   private router = inject(Router);
-  form = inject(FormBuilder).group({
+  form = inject(FormBuilder).nonNullable.group({
     email: ['', [Validators.required, Validators.email]],
     password: ['', Validators.required],
   });
   loading = false;
   error = '';
 
-  onSubmit() {
-    if (this.form.invalid) return;
+  onSubmit(): void {
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      return;
+    }
+
     this.loading = true;
     this.error = '';
-    const { email, password } = this.form.value;
-    this.auth.login(email!, password!).subscribe({
+
+    const { email, password } = this.form.getRawValue();
+    this.auth.login(email, password).subscribe({
       next: () => {
         this.router.navigate(['/dashboard']);
       },
-      error: err => {
-        this.error = err?.error?.message || 'Login failed';
+      error: (err) => {
+        this.error = err?.error?.detail || err?.error?.message || 'Login failed';
         this.loading = false;
       },
       complete: () => (this.loading = false)

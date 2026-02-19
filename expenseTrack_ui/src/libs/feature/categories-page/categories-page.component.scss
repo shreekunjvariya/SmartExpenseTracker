@@ -1,1 +1,281 @@
 
+.page {
+  padding: 1.3rem;
+}
+
+.page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-bottom: 1rem;
+}
+
+.page-header h1 {
+  margin: 0;
+  font-size: clamp(1.8rem, 4vw, 2.2rem);
+  letter-spacing: -0.02em;
+}
+
+.page-header p {
+  margin: 0.25rem 0 0;
+  color: #64748b;
+}
+
+.btn-primary {
+  border: 0;
+  border-radius: 999px;
+  background: #064e3b;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #043d2f;
+}
+
+.btn-primary:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.error,
+.success {
+  padding: 0.7rem 0.85rem;
+  border-radius: 0.75rem;
+  margin-bottom: 0.85rem;
+  font-size: 0.9rem;
+}
+
+.error {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.success {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.loading {
+  color: #64748b;
+}
+
+.empty-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.95rem;
+  background: #fff;
+  padding: 1.1rem;
+  color: #64748b;
+}
+
+.categories-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.category-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.95rem;
+  background: #fff;
+  overflow: hidden;
+}
+
+.category-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.75rem 0.85rem;
+}
+
+.expand-btn {
+  border: 0;
+  background: transparent;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.color-chip {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.55rem;
+  flex: 0 0 auto;
+}
+
+.title-wrap {
+  display: grid;
+  min-width: 0;
+}
+
+.title-wrap strong {
+  font-size: 0.95rem;
+}
+
+.title-wrap small {
+  color: #64748b;
+  font-size: 0.78rem;
+}
+
+.chevron {
+  color: #64748b;
+  font-weight: 700;
+}
+
+.row-actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.icon-btn {
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  background: #fff;
+  color: #334155;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.35rem 0.55rem;
+  cursor: pointer;
+}
+
+.icon-btn:hover {
+  border-color: #064e3b;
+  color: #064e3b;
+}
+
+.icon-btn.danger:hover {
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.sub-list {
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.sub-empty {
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  color: #64748b;
+}
+
+.sub-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  padding: 0.6rem 0.85rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.sub-row:last-child {
+  border-bottom: 0;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 55%);
+  padding: 1rem;
+}
+
+.modal {
+  width: min(520px, 100%);
+  border-radius: 1rem;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  box-shadow: 0 20px 45px rgb(15 23 42 / 28%);
+  padding: 1rem;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-bottom: 0.8rem;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.close-btn {
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  background: #fff;
+  color: #334155;
+  width: 2rem;
+  height: 2rem;
+  cursor: pointer;
+}
+
+.field {
+  margin-bottom: 0.75rem;
+}
+
+.field label {
+  display: inline-block;
+  margin-bottom: 0.35rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.field input {
+  width: 100%;
+  border: 1px solid #d1d5db;
+  border-radius: 0.6rem;
+  padding: 0.62rem 0.72rem;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+}
+
+.color-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.color-dot {
+  border: 0;
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.color-dot.selected {
+  outline: 3px solid #0f172a;
+  outline-offset: 2px;
+}
+
+.full {
+  width: 100%;
+}
+
+.muted {
+  margin: 0 0 0.85rem;
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+@media (min-width: 768px) {
+  .page {
+    padding: 1.8rem;
+  }
+}
