@@ -1,5 +1,6 @@
-import { Component, OnInit, inject } from '@angular/core';
-import { catchError, of } from 'rxjs';
+import { ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { catchError, forkJoin, of } from 'rxjs';
 import { DashboardService } from '../../data-access/dashboard/dashboard.service';
 import { AuthService } from '../../data-access/auth/auth.service';
 import { DashboardStats, EntryType, ReportCategorySummary, ReportSummary, User } from '../../../../models';
@@ -58,6 +59,9 @@ const EMPTY_REPORT_SUMMARY: ReportSummary = {
 export class DashboardPageComponent implements OnInit {
   private dashboard = inject(DashboardService);
   private auth = inject(AuthService);
+  private cdr = inject(ChangeDetectorRef);
+  private destroyRef = inject(DestroyRef);
+  private destroyed = false;
 
   user: User | null = null;
   stats: DashboardStats | null = null;
@@ -65,11 +69,29 @@ export class DashboardPageComponent implements OnInit {
   loading = true;
   error = '';
 
+  constructor() {
+    this.destroyRef.onDestroy(() => {
+      this.destroyed = true;
+    });
+  }
+
   ngOnInit(): void {
     this.user = this.auth.user;
     if (!this.user && this.auth.token) {
-      this.auth.me().subscribe({
-        next: (user) => (this.user = user),
+      this.auth
+        .me()
+        .pipe(
+          takeUntilDestroyed(this.destroyRef),
+          catchError(() => of<User | null>(null))
+        )
+        .subscribe({
+          next: (user) => {
+            if (!user) {
+              return;
+            }
+            this.user = user;
+            this.refreshView();
+          },
       });
     }
     this.fetchData();
@@ -141,54 +163,51 @@ export class DashboardPageComponent implements OnInit {
     this.stats = EMPTY_DASHBOARD_STATS;
     this.summary = EMPTY_REPORT_SUMMARY;
 
-    let completedCalls = 0;
-    let successfulCalls = 0;
+    forkJoin({
+      stats: this.dashboard.getStats().pipe(catchError(() => of<DashboardStats | null>(null))),
+      summary: this.dashboard
+        .getMonthlySummary()
+        .pipe(catchError(() => of<ReportSummary | null>(null))),
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ stats, summary }) => {
+          let successfulCalls = 0;
 
-    const markCompleted = () => {
-      completedCalls += 1;
-      if (completedCalls !== 2) {
+          if (stats) {
+            this.stats = stats;
+            successfulCalls += 1;
+          }
+
+          if (summary) {
+            this.summary = summary;
+            successfulCalls += 1;
+          }
+
+          if (successfulCalls === 0) {
+            this.error = 'Failed to load dashboard data.';
+          } else if (successfulCalls === 1) {
+            this.error = 'Some dashboard data could not be loaded.';
+          }
+
+          this.loading = false;
+          this.refreshView();
+        },
+        error: () => {
+          this.error = 'Failed to load dashboard data.';
+          this.loading = false;
+          this.refreshView();
+        },
+      });
+  }
+
+  private refreshView(): void {
+    // Ensure async updates are rendered even when running without zone-based CD.
+    queueMicrotask(() => {
+      if (this.destroyed) {
         return;
       }
-
-      if (successfulCalls === 0) {
-        this.error = 'Failed to load dashboard data.';
-      } else if (successfulCalls === 1) {
-        this.error = 'Some dashboard data could not be loaded.';
-      }
-
-      this.loading = false;
-    };
-
-    this.dashboard
-      .getStats()
-      .pipe(catchError(() => of<DashboardStats | null>(null)))
-      .subscribe({
-        next: (stats) => {
-          if (!stats) {
-            return;
-          }
-
-          this.stats = stats;
-          successfulCalls += 1;
-          this.loading = false;
-        },
-        complete: markCompleted,
-      });
-
-    this.dashboard
-      .getMonthlySummary()
-      .pipe(catchError(() => of<ReportSummary | null>(null)))
-      .subscribe({
-        next: (summary) => {
-          if (!summary) {
-            return;
-          }
-
-          this.summary = summary;
-          successfulCalls += 1;
-          this.loading = false;
-        },
-        complete: markCompleted,
+      this.cdr.detectChanges();
     });
   }
 

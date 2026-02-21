@@ -7,11 +7,6 @@ export const authGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
   const router = inject(Router);
 
-  if (!auth.token) {
-    router.navigate(['/login']);
-    return false;
-  }
-
   if (auth.user) {
     return true;
   }
@@ -20,8 +15,7 @@ export const authGuard: CanActivateFn = () => {
     map(() => true),
     catchError(() => {
       auth.resetSession();
-      router.navigate(['/login']);
-      return of(false);
+      return of(router.createUrlTree(['/login']));
     })
   );
 };

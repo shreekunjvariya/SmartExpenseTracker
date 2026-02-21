@@ -6,7 +6,7 @@ import {
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
-import { BrowserModule, provideClientHydration, withEventReplay } from '@angular/platform-browser';
+import { BrowserModule } from '@angular/platform-browser';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { App } from './app';
 import { AppRoutingModule } from './app-routing.module';
@@ -70,7 +70,6 @@ import { ModalComponent } from './libs/shared/model-dialog/modal.component';
   ],
   providers: [
     provideBrowserGlobalErrorListeners(),
-    provideClientHydration(withEventReplay()),
     provideHttpClient(withInterceptors([authInterceptor])),
   ],
   bootstrap: [App],
