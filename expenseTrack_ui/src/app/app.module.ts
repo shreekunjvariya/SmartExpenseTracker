@@ -21,16 +21,23 @@ import { ReportsPageComponent } from './libs/feature/reports/reports-page.compon
 import { SettingsPageComponent } from './libs/feature/settings/settings-page.component';
 import { ProtectedLayoutComponent } from './libs/layout/protected-layout/protected-layout.component';
 import { SidebarComponent } from './libs/layout/sidebar/sidebar.component';
-import { AlertComponent, SpinnerComponent } from './libs/shared/alert-spinner/alert-spinner.component';
-import { CardComponent, CardContentComponent, CardDescriptionComponent, CardHeaderComponent, CardTitleComponent } from './libs/shared/card-component/card.component';
-import { ButtonComponent, InputComponent } from './libs/shared/input-button/input-button.component';
-import { ConfirmDialogComponent, ModalComponent } from './libs/shared/model-dialog/modal-dialog.component';
+import { AlertComponent } from './libs/shared/alert-spinner/alert.component';
+import { SpinnerComponent } from './libs/shared/alert-spinner/spinner.component';
+import { CardComponent } from './libs/shared/card-component/card.component';
+import { CardContentComponent } from './libs/shared/card-component/card-content.component';
+import { CardDescriptionComponent } from './libs/shared/card-component/card-description.component';
+import { CardHeaderComponent } from './libs/shared/card-component/card-header.component';
+import { CardTitleComponent } from './libs/shared/card-component/card-title.component';
+import { ButtonComponent } from './libs/shared/input-button/button.component';
+import { InputComponent } from './libs/shared/input-button/input.component';
+import { ConfirmDialogComponent } from './libs/shared/model-dialog/confirm-dialog.component';
+import { ModalComponent } from './libs/shared/model-dialog/modal.component';
 
 
 @NgModule({
   declarations: [
     App,
-    LandingPageComponent,
+    LandingPageComponent, 
     LoginPageComponent,
     RegisterPageComponent,
     DashboardPageComponent,

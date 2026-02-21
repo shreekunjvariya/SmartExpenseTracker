@@ -2,18 +2,8 @@ import { Component, inject } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
 import { AuthService } from '../../data-access/auth/auth.service';
 import { Router } from '@angular/router';
-import { ProfileType, User } from '../../../../models';
-
-interface CurrencyOption {
-  code: string;
-  name: string;
-  symbol: string;
-}
-
-interface ProfileOption {
-  value: ProfileType;
-  label: string;
-}
+import { User } from '../../../../models';
+import { PROFILE_OPTIONS, REGISTRATION_CURRENCY_OPTIONS } from '../../shared/constants/options.constants';
 
 @Component({
   selector: 'register-page',
@@ -34,22 +24,8 @@ export class RegisterPageComponent {
   loading = false;
   error = '';
 
-  readonly profileOptions: ProfileOption[] = [
-    { value: 'salaried', label: 'Salaried Employee' },
-    { value: 'self_employed', label: 'Self Employed' },
-    { value: 'businessman', label: 'Business Owner' },
-  ];
-
-  readonly currencyOptions: CurrencyOption[] = [
-    { code: 'USD', name: 'US Dollar', symbol: '$' },
-    { code: 'EUR', name: 'Euro', symbol: 'EUR' },
-    { code: 'GBP', name: 'British Pound', symbol: 'GBP' },
-    { code: 'JPY', name: 'Japanese Yen', symbol: 'JPY' },
-    { code: 'INR', name: 'Indian Rupee', symbol: 'INR' },
-    { code: 'CAD', name: 'Canadian Dollar', symbol: 'CAD' },
-    { code: 'AUD', name: 'Australian Dollar', symbol: 'AUD' },
-    { code: 'CNY', name: 'Chinese Yuan', symbol: 'CNY' },
-  ];
+  readonly profileOptions = PROFILE_OPTIONS;
+  readonly currencyOptions = REGISTRATION_CURRENCY_OPTIONS;
 
   onSubmit(): void {
     if (this.form.invalid) {

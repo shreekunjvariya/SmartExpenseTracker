@@ -1,5 +1,4 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response
-from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -311,11 +310,66 @@ def normalize_entry_type(value: Optional[str], default: str = "expense") -> str:
         raise HTTPException(status_code=400, detail="Invalid entry type")
     return normalized
 
-def get_transaction_entry_type(doc: Dict[str, Any]) -> str:
-    raw = doc.get("entry_type")
-    return raw if raw in ENTRY_TYPES else "expense"
-
 # ==================== AUTH HELPERS ====================
+
+def build_subcategories_payload(subcategories: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+    return [
+        {
+            "subcategory_id": f"sub_{uuid.uuid4().hex[:12]}",
+            "name": sub["name"],
+            "icon": sub.get("icon") or "tag",
+        }
+        for sub in subcategories
+    ]
+
+def build_category_doc(user_id: str, category: Dict[str, Any], entry_type: str) -> Dict[str, Any]:
+    return {
+        "category_id": f"cat_{uuid.uuid4().hex[:12]}",
+        "user_id": user_id,
+        "name": category["name"],
+        "icon": category.get("icon", "folder"),
+        "color": category.get("color", "#064E3B"),
+        "entry_type": entry_type,
+        "subcategories": build_subcategories_payload(category.get("subcategories", [])),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+async def insert_category_doc(user_id: str, category: Dict[str, Any], entry_type: str) -> Dict[str, Any]:
+    category_doc = build_category_doc(user_id, category, entry_type)
+    await db.categories.insert_one(category_doc)
+    return category_doc
+
+def set_session_cookie(response: Response, token: str) -> None:
+    response.set_cookie(
+        key="session_token",
+        value=token,
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
+        path="/",
+        max_age=JWT_EXPIRATION_DAYS * 24 * 60 * 60
+    )
+
+def build_auth_response(user_doc: Dict[str, Any], token: str) -> Dict[str, Any]:
+    return {
+        "user_id": user_doc["user_id"],
+        "email": user_doc["email"],
+        "name": user_doc["name"],
+        "profile_type": user_doc.get("profile_type", "salaried"),
+        "preferred_currency": user_doc.get("preferred_currency", "USD"),
+        "token": token,
+    }
+
+def build_date_query(start_date: Optional[str], end_date: Optional[str]) -> Dict[str, Any]:
+    if not start_date and not end_date:
+        return {}
+
+    date_query: Dict[str, str] = {}
+    if start_date:
+        date_query["$gte"] = start_date
+    if end_date:
+        date_query["$lte"] = end_date
+    return {"date": date_query}
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
@@ -365,30 +419,11 @@ async def get_current_user(request: Request) -> User:
     raise HTTPException(status_code=401, detail="Invalid token")
 
 async def create_default_categories(user_id: str, profile_type: str):
-    async def insert_categories(categories: List[Dict[str, Any]], entry_type: str):
-        for cat in categories:
-            category_id = f"cat_{uuid.uuid4().hex[:12]}"
-            subcats = []
-            for sub in cat.get("subcategories", []):
-                subcats.append({
-                    "subcategory_id": f"sub_{uuid.uuid4().hex[:12]}",
-                    "name": sub["name"],
-                    "icon": sub.get("icon", "tag")
-                })
-            await db.categories.insert_one({
-                "category_id": category_id,
-                "user_id": user_id,
-                "name": cat["name"],
-                "icon": cat.get("icon", "folder"),
-                "color": cat.get("color", "#064E3B"),
-                "entry_type": entry_type,
-                "subcategories": subcats,
-                "created_at": datetime.now(timezone.utc).isoformat()
-            })
-
     expense_categories = DEFAULT_CATEGORIES.get(profile_type, DEFAULT_CATEGORIES["salaried"])
-    await insert_categories(expense_categories, "expense")
-    await insert_categories(DEFAULT_INCOME_CATEGORIES, "income")
+    for cat in expense_categories:
+        await insert_category_doc(user_id, cat, "expense")
+    for cat in DEFAULT_INCOME_CATEGORIES:
+        await insert_category_doc(user_id, cat, "income")
 
 async def seed_income_categories_if_missing(user_id: str):
     income_count = await db.categories.count_documents({"user_id": user_id, "entry_type": "income"})
@@ -396,24 +431,7 @@ async def seed_income_categories_if_missing(user_id: str):
         return
 
     for cat in DEFAULT_INCOME_CATEGORIES:
-        category_id = f"cat_{uuid.uuid4().hex[:12]}"
-        subcats = []
-        for sub in cat.get("subcategories", []):
-            subcats.append({
-                "subcategory_id": f"sub_{uuid.uuid4().hex[:12]}",
-                "name": sub["name"],
-                "icon": sub.get("icon", "tag")
-            })
-        await db.categories.insert_one({
-            "category_id": category_id,
-            "user_id": user_id,
-            "name": cat["name"],
-            "icon": cat.get("icon", "folder"),
-            "color": cat.get("color", "#064E3B"),
-            "entry_type": "income",
-            "subcategories": subcats,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        })
+        await insert_category_doc(user_id, cat, "income")
 
 def normalize_category_doc(category_doc: Dict[str, Any]) -> Dict[str, Any]:
     if "entry_type" not in category_doc:
@@ -477,29 +495,12 @@ async def register(user_data: UserCreate, response: Response):
     
     # Create JWT token
     token = create_jwt_token(user_id)
-    
-    response.set_cookie(
-        key="session_token",
-        value=token,
-        httponly=True,
-        secure=COOKIE_SECURE,
-        samesite=COOKIE_SAMESITE,
-        path="/",
-        max_age=JWT_EXPIRATION_DAYS * 24 * 60 * 60
-    )
-    
-    return {
-        "user_id": user_id,
-        "email": user_data.email,
-        "name": user_data.name,
-        "profile_type": user_data.profile_type,
-        "preferred_currency": user_data.preferred_currency,
-        "token": token
-    }
+
+    set_session_cookie(response, token)
+    return build_auth_response(user_doc, token)
 
 @api_router.post("/auth/login")
 async def login(credentials: UserLogin, response: Response):
-    print("Login Initiated", credentials.email, credentials.password)
     user_doc = await db.users.find_one({"email": credentials.email}, {"_id": 0})
 
     if not user_doc:
@@ -510,24 +511,8 @@ async def login(credentials: UserLogin, response: Response):
     
     token = create_jwt_token(user_doc["user_id"])
     
-    response.set_cookie(
-        key="session_token",
-        value=token,
-        httponly=True,
-        secure=COOKIE_SECURE,
-        samesite=COOKIE_SAMESITE,
-        path="/",
-        max_age=JWT_EXPIRATION_DAYS * 24 * 60 * 60
-    )
-    
-    return {
-        "user_id": user_doc["user_id"],
-        "email": user_doc["email"],
-        "name": user_doc["name"],
-        "profile_type": user_doc.get("profile_type", "salaried"),
-        "preferred_currency": user_doc.get("preferred_currency", "USD"),
-        "token": token
-    }
+    set_session_cookie(response, token)
+    return build_auth_response(user_doc, token)
 
 
 
@@ -596,28 +581,17 @@ async def get_categories(
 
 @api_router.post("/categories", response_model=Category)
 async def create_category(category_data: CategoryCreate, user: User = Depends(get_current_user)):
-    category_id = f"cat_{uuid.uuid4().hex[:12]}"
     entry_type = normalize_entry_type(category_data.entry_type)
-    
-    subcats = []
-    for sub in category_data.subcategories or []:
-        subcats.append({
-            "subcategory_id": f"sub_{uuid.uuid4().hex[:12]}",
-            "name": sub.name,
-            "icon": sub.icon or "tag"
-        })
-    
-    category_doc = {
-        "category_id": category_id,
-        "user_id": user.user_id,
-        "name": category_data.name,
-        "icon": category_data.icon or "folder",
-        "color": category_data.color or "#064E3B",
-        "entry_type": entry_type,
-        "subcategories": subcats,
-        "created_at": datetime.now(timezone.utc).isoformat()
-    }
-    await db.categories.insert_one(category_doc)
+    category_doc = await insert_category_doc(
+        user.user_id,
+        {
+            "name": category_data.name,
+            "icon": category_data.icon or "folder",
+            "color": category_data.color or "#064E3B",
+            "subcategories": [sub.model_dump() for sub in category_data.subcategories or []],
+        },
+        entry_type,
+    )
     return category_doc
 
 @api_router.put("/categories/{category_id}")
@@ -713,14 +687,7 @@ async def get_expenses(
 ):
     query = {"user_id": user.user_id}
     query.update(build_entry_type_query(entry_type))
-    
-    if start_date:
-        query["date"] = {"$gte": start_date}
-    if end_date:
-        if "date" in query:
-            query["date"]["$lte"] = end_date
-        else:
-            query["date"] = {"$lte": end_date}
+    query.update(build_date_query(start_date, end_date))
     if category_id:
         query["category_id"] = category_id
     
@@ -897,13 +864,7 @@ async def export_expenses(
     user: User = Depends(get_current_user)
 ):
     query = {"user_id": user.user_id}
-    if start_date:
-        query["date"] = {"$gte": start_date}
-    if end_date:
-        if "date" in query:
-            query["date"]["$lte"] = end_date
-        else:
-            query["date"] = {"$lte": end_date}
+    query.update(build_date_query(start_date, end_date))
     
     transactions = await db.expenses.find(query, {"_id": 0}).sort("date", -1).to_list(10000)
     categories = await db.categories.find({"user_id": user.user_id}, {"_id": 0}).to_list(100)

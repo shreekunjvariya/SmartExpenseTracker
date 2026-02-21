@@ -1,17 +1,17 @@
 import { CommonModule } from '@angular/common';
 import { TestBed } from '@angular/core/testing';
-import { CardComponent } from './card.component';
+import { ButtonComponent } from './button.component';
 
-describe('CardComponent', () => {
+describe('ButtonComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [CommonModule],
-      declarations: [CardComponent],
+      declarations: [ButtonComponent],
     }).compileComponents();
   });
 
   it('should create', () => {
-    const fixture = TestBed.createComponent(CardComponent);
+    const fixture = TestBed.createComponent(ButtonComponent);
     expect(fixture.componentInstance).toBeTruthy();
   });
 });
