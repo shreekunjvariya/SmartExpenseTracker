@@ -54,23 +54,21 @@
         Clear
       </button>
     </div>
-    <mat-form-field appearance="outline" subscriptSizing="dynamic" class="category-select category-filter-select">
-      <mat-label>Category</mat-label>
-      <mat-select
+    <div class="category-filter-wrap">
+      <label class="sr-only" for="filter-category">Category</label>
+      <select
+        id="filter-category"
+        class="category-filter-control"
         [(ngModel)]="filterCategory"
-        (selectionChange)="onFilterCategorySelected($event.value)"
-        panelClass="category-filter-panel"
+        (ngModelChange)="onFilterCategorySelected($event)"
         data-testid="expense-filter-category-search-input"
       >
-        <mat-select-trigger>
-          {{ filterCategory === 'all' ? 'All Categories' : (getCategory(filterCategory, activeEntryType)?.name || 'All Categories') }}
-        </mat-select-trigger>
-        <mat-option value="all">All Categories</mat-option>
-        <mat-option *ngFor="let category of filterCategories" [value]="category.category_id">
+        <option value="all">All Categories</option>
+        <option *ngFor="let category of filterCategories" [value]="category.category_id">
           {{ category.name }}
-        </mat-option>
-      </mat-select>
-    </mat-form-field>
+        </option>
+      </select>
+    </div>
   </section>
 
   <section class="list-card">
@@ -154,11 +152,33 @@
     <form [formGroup]="form" (ngSubmit)="saveExpense()">
       <div class="field-grid">
         <div class="field">
-          <label for="entry_type">Type</label>
-          <select id="entry_type" formControlName="entry_type" (change)="onEntryTypeChange()" data-testid="expense-entry-type-select">
-            <option value="expense">Expense</option>
-            <option value="income">Income</option>
-          </select>
+          <label>Type</label>
+          <div
+            id="entry-type-toggle"
+            class="dialog-type-toggle"
+            role="group"
+            aria-label="Select transaction type"
+            data-testid="expense-entry-type-select"
+          >
+            <button
+              type="button"
+              [class.active]="form.controls.entry_type.value === 'expense'"
+              (click)="setDialogEntryType('expense')"
+              [attr.aria-pressed]="form.controls.entry_type.value === 'expense'"
+              data-testid="expense-entry-type-expense"
+            >
+              Expense
+            </button>
+            <button
+              type="button"
+              [class.active]="form.controls.entry_type.value === 'income'"
+              (click)="setDialogEntryType('income')"
+              [attr.aria-pressed]="form.controls.entry_type.value === 'income'"
+              data-testid="expense-entry-type-income"
+            >
+              Income
+            </button>
+          </div>
         </div>
 
         <div class="field">
@@ -194,20 +214,17 @@
 
       <div class="field">
         <label for="category">Category</label>
-        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="category-select category-form-select">
-          <mat-label>Category</mat-label>
-          <mat-select
-            id="category"
-            formControlName="category_id"
-            (selectionChange)="onCategoryChange()"
-            panelClass="category-form-panel"
-            data-testid="expense-category-search-input"
-          >
-            <mat-option *ngFor="let category of formCategories" [value]="category.category_id">
-              {{ category.name }}
-            </mat-option>
-          </mat-select>
-        </mat-form-field>
+        <select
+          id="category"
+          formControlName="category_id"
+          (change)="onCategoryChange()"
+          data-testid="expense-category-search-input"
+        >
+          <option value="" disabled>Select category</option>
+          <option *ngFor="let category of formCategories" [value]="category.category_id">
+            {{ category.name }}
+          </option>
+        </select>
       </div>
 
       <div class="field" *ngIf="selectedCategory?.subcategories?.length">

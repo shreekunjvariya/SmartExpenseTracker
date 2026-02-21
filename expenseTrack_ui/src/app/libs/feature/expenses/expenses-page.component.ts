@@ -167,6 +167,15 @@ export class ExpensesPageComponent implements OnInit {
     });
   }
 
+  setDialogEntryType(entryType: EntryType): void {
+    if (this.form.controls.entry_type.value === entryType) {
+      return;
+    }
+
+    this.form.patchValue({ entry_type: entryType });
+    this.onEntryTypeChange();
+  }
+
   onFilterCategorySelected(categoryId: string): void {
     this.filterCategory = categoryId || 'all';
   }
