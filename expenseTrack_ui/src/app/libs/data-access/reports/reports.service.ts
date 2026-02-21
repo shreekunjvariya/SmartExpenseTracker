@@ -1,54 +1,18 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../../environments/environment';
-import { Observable, catchError, shareReplay, tap, throwError } from 'rxjs';
-import { ReportSummary } from '../../../../models';
-import { AuthService } from '../auth/auth.service';
-
-type ReportPeriod = 'week' | 'month' | 'year';
-
-interface SummaryCacheEntry {
-  value$: Observable<ReportSummary>;
-  fetchedAt: number;
-  token: string | null;
-}
+import { Observable, tap } from 'rxjs';
+import { ReportPeriod, ReportSummary } from '../../../../models';
+import { AnalyticsService } from '../analytics/analytics.service';
 
 @Injectable({ providedIn: 'root' })
 export class ReportsService {
   private http = inject(HttpClient);
-  private auth = inject(AuthService);
+  private analytics = inject(AnalyticsService);
   private api = environment.apiBaseUrl + '/reports';
-  private readonly summaryCacheTtlMs = 2 * 60 * 1000;
-  private summaryCache = new Map<ReportPeriod, SummaryCacheEntry>();
 
   getSummary(period: ReportPeriod, forceRefresh = false): Observable<ReportSummary> {
-    const cached = this.summaryCache.get(period);
-    const token = this.auth.token;
-    const isFresh =
-      !!cached &&
-      !forceRefresh &&
-      cached.token === token &&
-      Date.now() - cached.fetchedAt < this.summaryCacheTtlMs;
-
-    if (isFresh) {
-      return cached.value$;
-    }
-
-    const request$ = this.http.get<ReportSummary>(`${this.api}/summary?period=${period}`).pipe(
-      shareReplay(1),
-      catchError((error) => {
-        this.summaryCache.delete(period);
-        return throwError(() => error);
-      })
-    );
-
-    this.summaryCache.set(period, {
-      value$: request$,
-      fetchedAt: Date.now(),
-      token,
-    });
-
-    return request$;
+    return this.analytics.getReportSummary(period, forceRefresh);
   }
 
   exportCsv(start: string, end: string): Observable<Blob> {
@@ -62,6 +26,6 @@ export class ReportsService {
   }
 
   invalidateSummaryCache(): void {
-    this.summaryCache.clear();
+    this.analytics.invalidateCache();
   }
 }

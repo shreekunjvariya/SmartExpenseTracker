@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response, Query
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -59,6 +59,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 ENTRY_TYPES = {"expense", "income"}
+ANALYTICS_RAW_DEFAULT_LIMIT = 500
+ANALYTICS_RAW_MAX_LIMIT = 2000
 
 # ==================== MODELS ====================
 
@@ -443,6 +445,23 @@ def normalize_expense_doc(expense_doc: Dict[str, Any]) -> Dict[str, Any]:
         expense_doc["entry_type"] = "expense"
     return expense_doc
 
+def parse_analytics_cursor(cursor: str) -> Dict[str, Any]:
+    parts = cursor.split("|", 1)
+    if len(parts) != 2:
+        raise HTTPException(status_code=400, detail="Invalid analytics cursor")
+
+    cursor_date = parts[0].strip()
+    cursor_expense_id = parts[1].strip()
+    if not cursor_date or not cursor_expense_id:
+        raise HTTPException(status_code=400, detail="Invalid analytics cursor")
+
+    return {
+        "$or": [
+            {"date": {"$lt": cursor_date}},
+            {"date": cursor_date, "expense_id": {"$lt": cursor_expense_id}},
+        ]
+    }
+
 def build_entry_type_query(entry_type: Optional[str]) -> Dict[str, Any]:
     if not entry_type:
         return {}
@@ -765,97 +784,55 @@ async def delete_expense(expense_id: str, user: User = Depends(get_current_user)
 
 # ==================== REPORTS & ANALYTICS ====================
 
+@api_router.get("/analytics/raw")
+async def get_analytics_raw(
+    limit: int = Query(ANALYTICS_RAW_DEFAULT_LIMIT, ge=1, le=ANALYTICS_RAW_MAX_LIMIT),
+    cursor: Optional[str] = None,
+    user: User = Depends(get_current_user),
+):
+    query: Dict[str, Any] = {"user_id": user.user_id}
+    if cursor:
+        query.update(parse_analytics_cursor(cursor))
+
+    fetch_limit = limit + 1
+    expenses = await db.expenses.find(query, {"_id": 0}).sort([
+        ("date", -1),
+        ("expense_id", -1),
+    ]).to_list(fetch_limit)
+
+    has_more = len(expenses) > limit
+    page_expenses = expenses[:limit]
+    normalized_expenses = [normalize_expense_doc(expense) for expense in page_expenses]
+
+    categories = await db.categories.find({"user_id": user.user_id}, {"_id": 0}).to_list(200)
+    normalized_categories = [normalize_category_doc(category) for category in categories]
+
+    next_cursor = None
+    if has_more and page_expenses:
+        last_expense = page_expenses[-1]
+        last_date = str(last_expense.get("date", "")).strip()
+        last_id = str(last_expense.get("expense_id", "")).strip()
+        if last_date and last_id:
+            next_cursor = f"{last_date}|{last_id}"
+
+    return {
+        "expenses": normalized_expenses,
+        "categories": normalized_categories,
+        "currency": user.preferred_currency,
+        "has_more": has_more,
+        "next_cursor": next_cursor,
+        "limit": limit,
+    }
+
 @api_router.get("/reports/summary")
 async def get_summary(
     period: str = "month",  # week, month, year
     user: User = Depends(get_current_user)
 ):
-    now = datetime.now(timezone.utc)
-    
-    if period == "week":
-        start_date = (now - timedelta(days=7)).isoformat()
-    elif period == "year":
-        start_date = (now - timedelta(days=365)).isoformat()
-    else:
-        start_date = (now - timedelta(days=30)).isoformat()
-    
-    transactions = await db.expenses.find(
-        {"user_id": user.user_id, "date": {"$gte": start_date}},
-        {"_id": 0}
-    ).to_list(1000)
-
-    for tx in transactions:
-        normalize_expense_doc(tx)
-    
-    # Get categories for names
-    categories = await db.categories.find({"user_id": user.user_id}, {"_id": 0}).to_list(100)
-    cat_map = {c["category_id"]: normalize_category_doc(c) for c in categories}
-    
-    # Calculate totals
-    income_total = sum(tx["amount"] for tx in transactions if tx["entry_type"] == "income")
-    expense_total = sum(tx["amount"] for tx in transactions if tx["entry_type"] == "expense")
-    net_total = income_total - expense_total
-    income_count = sum(1 for tx in transactions if tx["entry_type"] == "income")
-    expense_count = sum(1 for tx in transactions if tx["entry_type"] == "expense")
-    
-    # Group by category and type
-    by_category = {}
-    for tx in transactions:
-        cat_id = tx["category_id"]
-        cat_name = cat_map.get(cat_id, {}).get("name", "Other")
-        cat_color = cat_map.get(cat_id, {}).get("color", "#064E3B")
-        entry_type = tx["entry_type"]
-        category_key = f"{entry_type}:{cat_id}"
-        if category_key not in by_category:
-            by_category[category_key] = {
-                "category_id": cat_id,
-                "name": cat_name,
-                "color": cat_color,
-                "entry_type": entry_type,
-                "total": 0,
-                "count": 0
-            }
-        by_category[category_key]["total"] += tx["amount"]
-        by_category[category_key]["count"] += 1
-    
-    # Daily trend (income, expense, net)
-    daily_trend = {}
-    for tx in transactions:
-        date_str = tx["date"][:10]  # YYYY-MM-DD
-        if date_str not in daily_trend:
-            daily_trend[date_str] = {"income": 0, "expense": 0}
-        daily_trend[date_str][tx["entry_type"]] += tx["amount"]
-
-    ordered_daily = []
-    for date_str in sorted(daily_trend.keys()):
-        income = daily_trend[date_str]["income"]
-        expense = daily_trend[date_str]["expense"]
-        net = income - expense
-        ordered_daily.append({
-            "date": date_str,
-            "income": income,
-            "expense": expense,
-            "net": net,
-            "amount": net,
-        })
-    
-    return {
-        "total": expense_total,
-        "count": len(transactions),
-        "income_total": income_total,
-        "expense_total": expense_total,
-        "net_total": net_total,
-        "income_count": income_count,
-        "expense_count": expense_count,
-        "by_type": [
-            {"entry_type": "income", "total": income_total, "count": income_count},
-            {"entry_type": "expense", "total": expense_total, "count": expense_count},
-        ],
-        "by_category": list(by_category.values()),
-        "daily_trend": ordered_daily,
-        "period": period,
-        "currency": user.preferred_currency
-    }
+    raise HTTPException(
+        status_code=410,
+        detail="Deprecated endpoint. Use /api/analytics/raw and calculate summary on frontend.",
+    )
 
 @api_router.get("/reports/export")
 async def export_expenses(
@@ -1015,112 +992,24 @@ async def convert_currency(
 
 @api_router.get("/dashboard/stats")
 async def get_dashboard_stats(user: User = Depends(get_current_user)):
-    now = datetime.now(timezone.utc)
-    
-    # This month
-    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
-    
-    # Last month
-    last_month = (now.replace(day=1) - timedelta(days=1)).replace(day=1)
-    
-    # This month transactions
-    this_month_transactions = await db.expenses.find(
-        {"user_id": user.user_id, "date": {"$gte": month_start}},
-        {"_id": 0}
-    ).to_list(1000)
-    
-    # Last month transactions
-    last_month_transactions = await db.expenses.find(
-        {"user_id": user.user_id, "date": {"$gte": last_month.isoformat(), "$lt": month_start}},
-        {"_id": 0}
-    ).to_list(1000)
-    
-    # All time
-    all_transactions = await db.expenses.find({"user_id": user.user_id}, {"_id": 0}).to_list(10000)
-
-    def split_totals(transactions: List[Dict[str, Any]]) -> Dict[str, Any]:
-        normalized = [normalize_expense_doc(tx) for tx in transactions]
-        income = [tx for tx in normalized if tx["entry_type"] == "income"]
-        expense = [tx for tx in normalized if tx["entry_type"] == "expense"]
-
-        income_total = sum(tx["amount"] for tx in income)
-        expense_total = sum(tx["amount"] for tx in expense)
-        return {
-            "income_total": income_total,
-            "expense_total": expense_total,
-            "net_total": income_total - expense_total,
-            "income_count": len(income),
-            "expense_count": len(expense),
-            "total_count": len(normalized),
-        }
-
-    this_month = split_totals(this_month_transactions)
-    last_month_stats = split_totals(last_month_transactions)
-    all_time = split_totals(all_transactions)
-    
-    # Expense percentage change
-    if last_month_stats["expense_total"] > 0:
-        change = ((this_month["expense_total"] - last_month_stats["expense_total"]) / last_month_stats["expense_total"]) * 100
-    else:
-        change = 100 if this_month["expense_total"] > 0 else 0
-
-    # Net percentage change
-    if last_month_stats["net_total"] != 0:
-        net_change = ((this_month["net_total"] - last_month_stats["net_total"]) / abs(last_month_stats["net_total"])) * 100
-    else:
-        net_change = 100 if this_month["net_total"] > 0 else 0
-    
-    # Categories count
-    categories = await db.categories.count_documents({"user_id": user.user_id})
-    
-    return {
-        "this_month": {
-            "total": this_month["expense_total"],
-            "count": this_month["expense_count"]
-        },
-        "last_month": {
-            "total": last_month_stats["expense_total"],
-            "count": last_month_stats["expense_count"]
-        },
-        "all_time": {
-            "total": all_time["expense_total"],
-            "count": all_time["expense_count"]
-        },
-        "this_month_income": {
-            "total": this_month["income_total"],
-            "count": this_month["income_count"]
-        },
-        "this_month_expense": {
-            "total": this_month["expense_total"],
-            "count": this_month["expense_count"]
-        },
-        "this_month_net": this_month["net_total"],
-        "last_month_income": {
-            "total": last_month_stats["income_total"],
-            "count": last_month_stats["income_count"]
-        },
-        "last_month_expense": {
-            "total": last_month_stats["expense_total"],
-            "count": last_month_stats["expense_count"]
-        },
-        "last_month_net": last_month_stats["net_total"],
-        "all_time_income": {
-            "total": all_time["income_total"],
-            "count": all_time["income_count"]
-        },
-        "all_time_expense": {
-            "total": all_time["expense_total"],
-            "count": all_time["expense_count"]
-        },
-        "all_time_net": all_time["net_total"],
-        "change_percentage": round(change, 1),
-        "net_change_percentage": round(net_change, 1),
-        "categories_count": categories,
-        "currency": user.preferred_currency
-    }
+    raise HTTPException(
+        status_code=410,
+        detail="Deprecated endpoint. Use /api/analytics/raw and calculate dashboard stats on frontend.",
+    )
 
 # Include the router
 app.include_router(api_router)
+
+@app.on_event("startup")
+async def ensure_db_indexes():
+    try:
+        await db.expenses.create_index([("user_id", 1), ("date", -1), ("expense_id", -1)])
+        await db.expenses.create_index([("user_id", 1), ("category_id", 1), ("date", -1)])
+        await db.categories.create_index([("user_id", 1), ("entry_type", 1)])
+        await db.categories.create_index([("user_id", 1), ("category_id", 1)])
+        await db.users.create_index([("email", 1)])
+    except Exception as exc:
+        logger.warning("Unable to ensure database indexes: %s", exc)
 
 @app.on_event("shutdown")
 async def shutdown_db_client():

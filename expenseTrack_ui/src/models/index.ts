@@ -1,5 +1,6 @@
 export type ProfileType = 'salaried' | 'self_employed' | 'businessman';
 export type EntryType = 'expense' | 'income';
+export type ReportPeriod = 'week' | 'month' | 'year';
 
 export interface User {
   user_id: string;
@@ -98,7 +99,7 @@ export interface ReportSummary {
   by_type: ReportTypeSummary[];
   by_category: ReportCategorySummary[];
   daily_trend: ReportDailyTrend[];
-  period: 'week' | 'month' | 'year';
+  period: ReportPeriod;
   currency: string;
 }
 
@@ -108,4 +109,13 @@ export interface CurrencyConvertResponse {
   original_amount: number;
   converted_amount: number;
   rate: number;
+}
+
+export interface AnalyticsRawResponse {
+  expenses: Expense[];
+  categories: Category[];
+  currency: string;
+  has_more: boolean;
+  next_cursor: string | null;
+  limit: number;
 }
