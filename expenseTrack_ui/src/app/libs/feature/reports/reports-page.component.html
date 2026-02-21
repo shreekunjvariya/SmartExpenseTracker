@@ -1,0 +1,167 @@
+<div class="page" data-testid="reports-page">
+  <header class="page-header">
+    <h1>Reports</h1>
+    <p>Analyze spending patterns and export data</p>
+  </header>
+
+  <p class="error" *ngIf="error">{{ error }}</p>
+  <p class="success" *ngIf="success">{{ success }}</p>
+
+  <nav class="tabs">
+    <button type="button" [class.active]="activeTab === 'overview'" (click)="setTab('overview')" data-testid="tab-overview">
+      Overview
+    </button>
+    <button type="button" [class.active]="activeTab === 'export'" (click)="setTab('export')" data-testid="tab-export">
+      Export
+    </button>
+    <button type="button" [class.active]="activeTab === 'import'" (click)="setTab('import')" data-testid="tab-import">
+      Import
+    </button>
+  </nav>
+
+  <section *ngIf="activeTab === 'overview'" class="tab-panel">
+    <div class="period-switch">
+      <button
+        type="button"
+        *ngFor="let value of ['week', 'month', 'year']"
+        [class.active]="period === value"
+        (click)="setPeriodFromString(value)"
+        [attr.data-testid]="'period-' + value"
+      >
+        {{ value | titlecase }}
+      </button>
+    </div>
+
+    <div class="reports-skeleton" *ngIf="loading" aria-label="Loading report data">
+      <div class="skeleton-summary-grid">
+        <article class="skeleton-summary-card" *ngFor="let _ of [1, 2, 3]">
+          <span class="skeleton skeleton-line skeleton-line-sm"></span>
+          <span class="skeleton skeleton-line skeleton-line-lg"></span>
+          <span class="skeleton skeleton-line skeleton-line-md"></span>
+        </article>
+      </div>
+
+      <article class="skeleton-breakdown-card">
+        <span class="skeleton skeleton-line skeleton-line-sm"></span>
+        <div class="skeleton-breakdown-list">
+          <div class="skeleton-breakdown-row" *ngFor="let _ of [1, 2, 3, 4]">
+            <div class="skeleton-breakdown-left">
+              <span class="skeleton skeleton-dot"></span>
+              <div class="skeleton-breakdown-copy">
+                <span class="skeleton skeleton-line skeleton-line-md"></span>
+                <span class="skeleton skeleton-line skeleton-line-sm"></span>
+              </div>
+            </div>
+            <div class="skeleton-breakdown-right">
+              <span class="skeleton skeleton-line skeleton-total"></span>
+              <span class="skeleton skeleton-line skeleton-percent"></span>
+            </div>
+          </div>
+        </div>
+      </article>
+    </div>
+
+    <ng-container *ngIf="!loading">
+      <div class="summary-grid">
+        <article class="summary-card">
+          <p>Total Income ({{ period }})</p>
+          <strong class="value-income">{{ formatCurrency(incomeTotal) }}</strong>
+          <small>{{ summary?.income_count || 0 }} income entries</small>
+        </article>
+
+        <article class="summary-card">
+          <p>Total Expense ({{ period }})</p>
+          <strong class="value-expense">{{ formatCurrency(expenseTotal) }}</strong>
+          <small>{{ summary?.expense_count || 0 }} expense entries</small>
+        </article>
+
+        <article class="summary-card">
+          <p>Net Cashflow ({{ period }})</p>
+          <strong [class.value-income]="netTotal >= 0" [class.value-expense]="netTotal < 0">{{ netTotal >= 0 ? '+' : '-' }}{{ formatCurrency(netTotal >= 0 ? netTotal : -netTotal) }}</strong>
+          <small>Daily avg: {{ dailyNetAverage >= 0 ? '+' : '-' }}{{ formatCurrency(dailyNetAverage >= 0 ? dailyNetAverage : -dailyNetAverage) }}</small>
+        </article>
+      </div>
+
+      <article class="card">
+        <h2>Detailed Breakdown</h2>
+        <div class="empty" *ngIf="!categoryBreakdown.length">No transaction data for this period.</div>
+
+        <div class="category-list" *ngIf="categoryBreakdown.length">
+          <div class="category-item" *ngFor="let category of categoryBreakdown">
+            <div class="left">
+              <span class="dot" [style.backgroundColor]="category.color || '#064E3B'"></span>
+              <div>
+                <p>
+                  {{ category.name }}
+                  <small class="type-chip" [class.income]="category.entry_type === 'income'" [class.expense]="category.entry_type !== 'income'">
+                    {{ typeLabel(category.entry_type) }}
+                  </small>
+                </p>
+                <small>{{ category.count }} transactions</small>
+              </div>
+            </div>
+            <div class="right">
+              <strong [class.value-income]="category.entry_type === 'income'" [class.value-expense]="category.entry_type !== 'income'">
+                {{ formatSignedAmount(category.total, category.entry_type) }}
+              </strong>
+              <small>{{ categoryPercent(category) }}% of {{ typeLabel(category.entry_type).toLowerCase() }}</small>
+            </div>
+          </div>
+        </div>
+      </article>
+    </ng-container>
+  </section>
+
+  <section *ngIf="activeTab === 'export'" class="tab-panel">
+    <article class="card">
+      <h2>Export Transactions to CSV</h2>
+      <p class="muted">Select a date range and download your income and expenses as a CSV file.</p>
+
+      <div class="date-grid">
+        <div class="field">
+          <label for="fromDate">From</label>
+          <input id="fromDate" type="date" [(ngModel)]="fromDate" data-testid="export-from-date" />
+        </div>
+        <div class="field">
+          <label for="toDate">To</label>
+          <input id="toDate" type="date" [(ngModel)]="toDate" data-testid="export-to-date" />
+        </div>
+      </div>
+
+      <button type="button" class="btn-primary" (click)="exportCsv()" data-testid="export-btn">Download CSV</button>
+
+      <div class="hint">
+        <p>CSV Format:</p>
+        <code>Date,Description,Amount,Type,Currency,Category,Subcategory</code>
+      </div>
+    </article>
+  </section>
+
+  <section *ngIf="activeTab === 'import'" class="tab-panel">
+    <article class="card">
+      <h2>Import Transactions from CSV</h2>
+
+      <div class="hint">
+        <p>Required CSV format:</p>
+        <code>Date,Description,Amount,Type,Currency,Category,Subcategory</code>
+        <code>2024-01-15,Coffee,5.50,expense,USD,Food &amp; Dining,Coffee &amp; Snacks</code>
+      </div>
+
+      <textarea
+        [(ngModel)]="importData"
+        placeholder="Paste your CSV data here (including header row)..."
+        data-testid="import-textarea"
+      ></textarea>
+
+      <button
+        type="button"
+        class="btn-primary"
+        [disabled]="importing || !importData.trim()"
+        (click)="importCsv()"
+        data-testid="import-btn"
+      >
+        {{ importing ? 'Importing...' : 'Import Transactions' }}
+      </button>
+    </article>
+  </section>
+</div>

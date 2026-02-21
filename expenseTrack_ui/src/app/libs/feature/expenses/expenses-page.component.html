@@ -1,0 +1,236 @@
+<div class="page" data-testid="expenses-page">
+  <div class="page-header">
+    <div>
+      <h1>Transactions</h1>
+      <p>Track and manage your expenses and income</p>
+    </div>
+    <div class="header-actions">
+      <button type="button" class="btn-secondary" (click)="openAddDialog('income')" data-testid="add-income-dialog-btn">
+        Add Income
+      </button>
+      <button type="button" class="btn-primary" (click)="openAddDialog('expense')" data-testid="add-expense-dialog-btn">
+        Add Expense
+      </button>
+    </div>
+  </div>
+
+  <p class="error" *ngIf="error">{{ error }}</p>
+  <p class="success" *ngIf="success">{{ success }}</p>
+
+  <nav class="entry-toggle" aria-label="Transaction type switch">
+    <button
+      type="button"
+      [class.active]="activeEntryType === 'expense'"
+      (click)="setActiveEntryType('expense')"
+      data-testid="transactions-expense-toggle"
+    >
+      Expenses
+    </button>
+    <button
+      type="button"
+      [class.active]="activeEntryType === 'income'"
+      (click)="setActiveEntryType('income')"
+      data-testid="transactions-income-toggle"
+    >
+      Income
+    </button>
+  </nav>
+
+  <section class="filters">
+    <div class="search-field">
+      <input
+        type="search"
+        placeholder="Search transactions..."
+        [(ngModel)]="searchTerm"
+        data-testid="expense-search-input"
+      />
+      <button
+        *ngIf="searchTerm"
+        type="button"
+        class="clear-chip"
+        (click)="searchTerm = ''"
+        aria-label="Clear transaction search"
+      >
+        Clear
+      </button>
+    </div>
+    <mat-form-field appearance="outline" subscriptSizing="dynamic" class="category-select category-filter-select">
+      <mat-label>Category</mat-label>
+      <mat-select
+        [(ngModel)]="filterCategory"
+        (selectionChange)="onFilterCategorySelected($event.value)"
+        panelClass="category-filter-panel"
+        data-testid="expense-filter-category-search-input"
+      >
+        <mat-select-trigger>
+          {{ filterCategory === 'all' ? 'All Categories' : (getCategory(filterCategory, activeEntryType)?.name || 'All Categories') }}
+        </mat-select-trigger>
+        <mat-option value="all">All Categories</mat-option>
+        <mat-option *ngFor="let category of filterCategories" [value]="category.category_id">
+          {{ category.name }}
+        </mat-option>
+      </mat-select>
+    </mat-form-field>
+  </section>
+
+  <section class="list-card">
+    <div class="list-skeleton" *ngIf="loading" aria-label="Loading expenses">
+      <article class="skeleton-expense-item" *ngFor="let _ of [1, 2, 3, 4, 5]">
+        <div class="skeleton-left">
+          <span class="skeleton skeleton-avatar"></span>
+          <div class="skeleton-copy">
+            <span class="skeleton skeleton-line skeleton-line-md"></span>
+            <span class="skeleton skeleton-line skeleton-line-sm"></span>
+          </div>
+        </div>
+        <div class="skeleton-right">
+          <span class="skeleton skeleton-line skeleton-amount"></span>
+          <span class="skeleton skeleton-line skeleton-date"></span>
+        </div>
+      </article>
+    </div>
+
+    <div class="empty" *ngIf="!loading && !filteredExpenses.length">
+      No transactions found. Add your first entry.
+    </div>
+
+    <ng-container *ngIf="!loading">
+      <article
+        class="expense-item"
+        *ngFor="let expense of filteredExpenses"
+        [attr.data-testid]="'expense-item-' + expense.expense_id"
+      >
+        <div class="left">
+          <div class="avatar" [style.backgroundColor]="getCategory(expense.category_id, expense.entry_type || 'expense')?.color || '#064E3B'">
+            {{ getCategory(expense.category_id, expense.entry_type || 'expense')?.name?.charAt(0) || (expense.entry_type === 'income' ? 'I' : 'E') }}
+          </div>
+          <div class="copy">
+            <p class="description">{{ expense.description }}</p>
+            <p class="meta">
+              <span class="type-badge" [class.income]="expense.entry_type === 'income'" [class.expense]="expense.entry_type !== 'income'">
+                {{ expense.entry_type === 'income' ? 'Income' : 'Expense' }}
+              </span>
+              {{ getCategory(expense.category_id, expense.entry_type || 'expense')?.name || 'Category' }}
+              <span *ngIf="getSubcategory(expense.category_id, expense.subcategory_id, expense.entry_type || 'expense')">
+                > {{ getSubcategory(expense.category_id, expense.subcategory_id, expense.entry_type || 'expense') }}
+              </span>
+            </p>
+          </div>
+        </div>
+
+        <div class="right">
+          <div class="amount-wrap">
+            <p class="amount" [class.income]="expense.entry_type === 'income'" [class.expense]="expense.entry_type !== 'income'">
+              {{ formatSignedAmount(expense) }}
+            </p>
+            <p class="date">{{ formatDate(expense.date) }}</p>
+          </div>
+          <div class="actions">
+            <button type="button" class="icon-btn" (click)="openEditDialog(expense)" [attr.data-testid]="'edit-expense-' + expense.expense_id">
+              Edit
+            </button>
+            <button
+              type="button"
+              class="icon-btn danger"
+              (click)="deleteExpense(expense)"
+              [attr.data-testid]="'delete-expense-' + expense.expense_id"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      </article>
+    </ng-container>
+  </section>
+</div>
+
+<div class="modal-backdrop" *ngIf="dialogOpen">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>{{ editingExpense ? 'Edit Transaction' : (form.controls.entry_type.value === 'income' ? 'Add New Income' : 'Add New Expense') }}</h2>
+      <button type="button" class="close-btn" (click)="closeDialog()">X</button>
+    </div>
+
+    <form [formGroup]="form" (ngSubmit)="saveExpense()">
+      <div class="field-grid">
+        <div class="field">
+          <label for="entry_type">Type</label>
+          <select id="entry_type" formControlName="entry_type" (change)="onEntryTypeChange()" data-testid="expense-entry-type-select">
+            <option value="expense">Expense</option>
+            <option value="income">Income</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="amount">Amount</label>
+          <input
+            id="amount"
+            type="number"
+            step="0.01"
+            formControlName="amount"
+            placeholder="0.00"
+            data-testid="expense-amount-input"
+          />
+        </div>
+
+        <div class="field">
+          <label for="currency">Currency</label>
+          <select id="currency" formControlName="currency" data-testid="expense-currency-select">
+            <option *ngFor="let currency of currencies" [value]="currency.code">{{ currency.label }}</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="description">Description</label>
+        <input
+          id="description"
+          type="text"
+          formControlName="description"
+          placeholder="What did you spend on?"
+          data-testid="expense-description-input"
+        />
+      </div>
+
+      <div class="field">
+        <label for="category">Category</label>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="category-select category-form-select">
+          <mat-label>Category</mat-label>
+          <mat-select
+            id="category"
+            formControlName="category_id"
+            (selectionChange)="onCategoryChange()"
+            panelClass="category-form-panel"
+            data-testid="expense-category-search-input"
+          >
+            <mat-option *ngFor="let category of formCategories" [value]="category.category_id">
+              {{ category.name }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+
+      <div class="field" *ngIf="selectedCategory?.subcategories?.length">
+        <label for="subcategory">Subcategory (Optional)</label>
+        <select id="subcategory" formControlName="subcategory_id" data-testid="expense-subcategory-select">
+          <option value="">Select subcategory</option>
+          <option
+            *ngFor="let subcategory of selectedCategory?.subcategories || []"
+            [value]="subcategory.subcategory_id"
+          >
+            {{ subcategory.name }}
+          </option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="date">Date</label>
+        <input id="date" type="date" formControlName="date" data-testid="expense-date-btn" />
+      </div>
+
+      <button type="submit" class="btn-primary full" [disabled]="saving" data-testid="expense-submit-btn">
+        {{ saving ? 'Saving...' : editingExpense ? 'Update Transaction' : (form.controls.entry_type.value === 'income' ? 'Add Income' : 'Add Expense') }}
+      </button>
+    </form>
+  </div>
+</div>

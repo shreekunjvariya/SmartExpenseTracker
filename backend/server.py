@@ -7,7 +7,7 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Literal
 import uuid
 from datetime import datetime, timezone, timedelta
 import jwt
@@ -59,6 +59,8 @@ api_router = APIRouter(prefix="/api")
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+ENTRY_TYPES = {"expense", "income"}
+
 # ==================== MODELS ====================
 
 class UserBase(BaseModel):
@@ -88,6 +90,7 @@ class CategoryBase(BaseModel):
     name: str
     icon: Optional[str] = "folder"
     color: Optional[str] = "#064E3B"
+    entry_type: Literal["expense", "income"] = "expense"
 
 class SubCategoryCreate(BaseModel):
     name: str
@@ -114,6 +117,7 @@ class ExpenseBase(BaseModel):
     description: str
     category_id: str
     subcategory_id: Optional[str] = None
+    entry_type: Literal["expense", "income"] = "expense"
     date: datetime
 
 class ExpenseCreate(ExpenseBase):
@@ -131,6 +135,7 @@ class ExpenseUpdate(BaseModel):
     description: Optional[str] = None
     category_id: Optional[str] = None
     subcategory_id: Optional[str] = None
+    entry_type: Optional[Literal["expense", "income"]] = None
     date: Optional[datetime] = None
 
 # ==================== CURRENCY DATA ====================
@@ -270,6 +275,46 @@ DEFAULT_CATEGORIES = {
     ],
 }
 
+DEFAULT_INCOME_CATEGORIES = [
+    {"name": "Salary", "icon": "wallet", "color": "#2563EB", "subcategories": [
+        {"name": "Base Salary", "icon": "banknote"},
+        {"name": "Overtime", "icon": "clock-3"},
+    ]},
+    {"name": "Bonus", "icon": "gift", "color": "#7C3AED", "subcategories": [
+        {"name": "Performance Bonus", "icon": "award"},
+        {"name": "Festival Bonus", "icon": "sparkles"},
+    ]},
+    {"name": "Reimbursement", "icon": "receipt", "color": "#0D9488", "subcategories": [
+        {"name": "Travel Reimbursement", "icon": "plane"},
+        {"name": "Office Reimbursement", "icon": "briefcase"},
+    ]},
+    {"name": "Freelance", "icon": "laptop", "color": "#EA580C", "subcategories": [
+        {"name": "Project Payment", "icon": "folder-kanban"},
+        {"name": "Consulting", "icon": "messages-square"},
+    ]},
+    {"name": "Investments", "icon": "trending-up", "color": "#16A34A", "subcategories": [
+        {"name": "Dividends", "icon": "line-chart"},
+        {"name": "Interest", "icon": "coins"},
+    ]},
+    {"name": "Other Income", "icon": "plus-circle", "color": "#0F766E", "subcategories": [
+        {"name": "Gift", "icon": "gift"},
+        {"name": "Refund", "icon": "rotate-ccw"},
+    ]},
+]
+
+def normalize_entry_type(value: Optional[str], default: str = "expense") -> str:
+    if not value:
+        return default
+
+    normalized = value.lower()
+    if normalized not in ENTRY_TYPES:
+        raise HTTPException(status_code=400, detail="Invalid entry type")
+    return normalized
+
+def get_transaction_entry_type(doc: Dict[str, Any]) -> str:
+    raw = doc.get("entry_type")
+    return raw if raw in ENTRY_TYPES else "expense"
+
 # ==================== AUTH HELPERS ====================
 
 def hash_password(password: str) -> str:
@@ -320,8 +365,37 @@ async def get_current_user(request: Request) -> User:
     raise HTTPException(status_code=401, detail="Invalid token")
 
 async def create_default_categories(user_id: str, profile_type: str):
-    categories = DEFAULT_CATEGORIES.get(profile_type, DEFAULT_CATEGORIES["salaried"])
-    for cat in categories:
+    async def insert_categories(categories: List[Dict[str, Any]], entry_type: str):
+        for cat in categories:
+            category_id = f"cat_{uuid.uuid4().hex[:12]}"
+            subcats = []
+            for sub in cat.get("subcategories", []):
+                subcats.append({
+                    "subcategory_id": f"sub_{uuid.uuid4().hex[:12]}",
+                    "name": sub["name"],
+                    "icon": sub.get("icon", "tag")
+                })
+            await db.categories.insert_one({
+                "category_id": category_id,
+                "user_id": user_id,
+                "name": cat["name"],
+                "icon": cat.get("icon", "folder"),
+                "color": cat.get("color", "#064E3B"),
+                "entry_type": entry_type,
+                "subcategories": subcats,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            })
+
+    expense_categories = DEFAULT_CATEGORIES.get(profile_type, DEFAULT_CATEGORIES["salaried"])
+    await insert_categories(expense_categories, "expense")
+    await insert_categories(DEFAULT_INCOME_CATEGORIES, "income")
+
+async def seed_income_categories_if_missing(user_id: str):
+    income_count = await db.categories.count_documents({"user_id": user_id, "entry_type": "income"})
+    if income_count > 0:
+        return
+
+    for cat in DEFAULT_INCOME_CATEGORIES:
         category_id = f"cat_{uuid.uuid4().hex[:12]}"
         subcats = []
         for sub in cat.get("subcategories", []):
@@ -336,9 +410,44 @@ async def create_default_categories(user_id: str, profile_type: str):
             "name": cat["name"],
             "icon": cat.get("icon", "folder"),
             "color": cat.get("color", "#064E3B"),
+            "entry_type": "income",
             "subcategories": subcats,
             "created_at": datetime.now(timezone.utc).isoformat()
         })
+
+def normalize_category_doc(category_doc: Dict[str, Any]) -> Dict[str, Any]:
+    if "entry_type" not in category_doc:
+        category_doc["entry_type"] = "expense"
+    return category_doc
+
+def normalize_expense_doc(expense_doc: Dict[str, Any]) -> Dict[str, Any]:
+    if "entry_type" not in expense_doc:
+        expense_doc["entry_type"] = "expense"
+    return expense_doc
+
+def build_entry_type_query(entry_type: Optional[str]) -> Dict[str, Any]:
+    if not entry_type:
+        return {}
+
+    normalized = normalize_entry_type(entry_type)
+    if normalized == "expense":
+        return {"$or": [{"entry_type": "expense"}, {"entry_type": {"$exists": False}}]}
+    return {"entry_type": "income"}
+
+async def ensure_category_for_entry_type(category_id: str, user_id: str, entry_type: str):
+    category = await db.categories.find_one(
+        {"category_id": category_id, "user_id": user_id},
+        {"_id": 0}
+    )
+    if not category:
+        raise HTTPException(status_code=400, detail="Category not found")
+
+    category_type = normalize_entry_type(category.get("entry_type"), "expense")
+    if category_type != entry_type:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Category type mismatch. Expected '{entry_type}' category."
+        )
 
 # ==================== AUTH ENDPOINTS ====================
 
@@ -474,13 +583,21 @@ async def update_profile(
 # ==================== CATEGORY ENDPOINTS ====================
 
 @api_router.get("/categories", response_model=List[Category])
-async def get_categories(user: User = Depends(get_current_user)):
-    categories = await db.categories.find({"user_id": user.user_id}, {"_id": 0}).to_list(100)
-    return categories
+async def get_categories(
+    entry_type: Optional[str] = None,
+    user: User = Depends(get_current_user)
+):
+    await seed_income_categories_if_missing(user.user_id)
+    query = {"user_id": user.user_id}
+    query.update(build_entry_type_query(entry_type))
+
+    categories = await db.categories.find(query, {"_id": 0}).to_list(200)
+    return [normalize_category_doc(category) for category in categories]
 
 @api_router.post("/categories", response_model=Category)
 async def create_category(category_data: CategoryCreate, user: User = Depends(get_current_user)):
     category_id = f"cat_{uuid.uuid4().hex[:12]}"
+    entry_type = normalize_entry_type(category_data.entry_type)
     
     subcats = []
     for sub in category_data.subcategories or []:
@@ -496,6 +613,7 @@ async def create_category(category_data: CategoryCreate, user: User = Depends(ge
         "name": category_data.name,
         "icon": category_data.icon or "folder",
         "color": category_data.color or "#064E3B",
+        "entry_type": entry_type,
         "subcategories": subcats,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
@@ -517,6 +635,8 @@ async def update_category(
         update_data["icon"] = body["icon"]
     if "color" in body:
         update_data["color"] = body["color"]
+    if "entry_type" in body:
+        update_data["entry_type"] = normalize_entry_type(body.get("entry_type"))
     
     if update_data:
         await db.categories.update_one(
@@ -530,7 +650,7 @@ async def update_category(
     )
     if not category_doc:
         raise HTTPException(status_code=404, detail="Category not found")
-    return category_doc
+    return normalize_category_doc(category_doc)
 
 @api_router.delete("/categories/{category_id}")
 async def delete_category(category_id: str, user: User = Depends(get_current_user)):
@@ -588,9 +708,11 @@ async def get_expenses(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     category_id: Optional[str] = None,
+    entry_type: Optional[str] = None,
     user: User = Depends(get_current_user)
 ):
     query = {"user_id": user.user_id}
+    query.update(build_entry_type_query(entry_type))
     
     if start_date:
         query["date"] = {"$gte": start_date}
@@ -603,11 +725,14 @@ async def get_expenses(
         query["category_id"] = category_id
     
     expenses = await db.expenses.find(query, {"_id": 0}).sort("date", -1).to_list(1000)
-    return expenses
+    return [normalize_expense_doc(expense) for expense in expenses]
 
 @api_router.post("/expenses", response_model=Expense)
 async def create_expense(expense_data: ExpenseCreate, user: User = Depends(get_current_user)):
     expense_id = f"exp_{uuid.uuid4().hex[:12]}"
+    entry_type = normalize_entry_type(expense_data.entry_type)
+
+    await ensure_category_for_entry_type(expense_data.category_id, user.user_id, entry_type)
     
     expense_doc = {
         "expense_id": expense_id,
@@ -617,10 +742,12 @@ async def create_expense(expense_data: ExpenseCreate, user: User = Depends(get_c
         "description": expense_data.description,
         "category_id": expense_data.category_id,
         "subcategory_id": expense_data.subcategory_id,
+        "entry_type": entry_type,
         "date": expense_data.date.isoformat() if isinstance(expense_data.date, datetime) else expense_data.date,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.expenses.insert_one(expense_doc)
+    expense_doc.pop("_id", None)
     return expense_doc
 
 @api_router.put("/expenses/{expense_id}")
@@ -632,7 +759,22 @@ async def update_expense(
     update_data = {k: v for k, v in expense_data.model_dump().items() if v is not None}
     if "date" in update_data and isinstance(update_data["date"], datetime):
         update_data["date"] = update_data["date"].isoformat()
-    
+
+    existing_doc = await db.expenses.find_one(
+        {"expense_id": expense_id, "user_id": user.user_id},
+        {"_id": 0}
+    )
+    if not existing_doc:
+        raise HTTPException(status_code=404, detail="Expense not found")
+
+    target_entry_type = normalize_entry_type(
+        update_data.get("entry_type", existing_doc.get("entry_type")),
+        "expense"
+    )
+    target_category_id = update_data.get("category_id", existing_doc.get("category_id"))
+    await ensure_category_for_entry_type(target_category_id, user.user_id, target_entry_type)
+    update_data["entry_type"] = target_entry_type
+
     if update_data:
         await db.expenses.update_one(
             {"expense_id": expense_id, "user_id": user.user_id},
@@ -645,7 +787,7 @@ async def update_expense(
     )
     if not expense_doc:
         raise HTTPException(status_code=404, detail="Expense not found")
-    return expense_doc
+    return normalize_expense_doc(expense_doc)
 
 @api_router.delete("/expenses/{expense_id}")
 async def delete_expense(expense_id: str, user: User = Depends(get_current_user)):
@@ -670,48 +812,80 @@ async def get_summary(
     else:
         start_date = (now - timedelta(days=30)).isoformat()
     
-    expenses = await db.expenses.find(
+    transactions = await db.expenses.find(
         {"user_id": user.user_id, "date": {"$gte": start_date}},
         {"_id": 0}
     ).to_list(1000)
+
+    for tx in transactions:
+        normalize_expense_doc(tx)
     
     # Get categories for names
     categories = await db.categories.find({"user_id": user.user_id}, {"_id": 0}).to_list(100)
-    cat_map = {c["category_id"]: c for c in categories}
+    cat_map = {c["category_id"]: normalize_category_doc(c) for c in categories}
     
     # Calculate totals
-    total = sum(e["amount"] for e in expenses)
+    income_total = sum(tx["amount"] for tx in transactions if tx["entry_type"] == "income")
+    expense_total = sum(tx["amount"] for tx in transactions if tx["entry_type"] == "expense")
+    net_total = income_total - expense_total
+    income_count = sum(1 for tx in transactions if tx["entry_type"] == "income")
+    expense_count = sum(1 for tx in transactions if tx["entry_type"] == "expense")
     
-    # Group by category
+    # Group by category and type
     by_category = {}
-    for exp in expenses:
-        cat_id = exp["category_id"]
+    for tx in transactions:
+        cat_id = tx["category_id"]
         cat_name = cat_map.get(cat_id, {}).get("name", "Other")
         cat_color = cat_map.get(cat_id, {}).get("color", "#064E3B")
-        if cat_id not in by_category:
-            by_category[cat_id] = {
+        entry_type = tx["entry_type"]
+        category_key = f"{entry_type}:{cat_id}"
+        if category_key not in by_category:
+            by_category[category_key] = {
                 "category_id": cat_id,
                 "name": cat_name,
                 "color": cat_color,
+                "entry_type": entry_type,
                 "total": 0,
                 "count": 0
             }
-        by_category[cat_id]["total"] += exp["amount"]
-        by_category[cat_id]["count"] += 1
+        by_category[category_key]["total"] += tx["amount"]
+        by_category[category_key]["count"] += 1
     
-    # Daily trend
+    # Daily trend (income, expense, net)
     daily_trend = {}
-    for exp in expenses:
-        date_str = exp["date"][:10]  # YYYY-MM-DD
+    for tx in transactions:
+        date_str = tx["date"][:10]  # YYYY-MM-DD
         if date_str not in daily_trend:
-            daily_trend[date_str] = 0
-        daily_trend[date_str] += exp["amount"]
+            daily_trend[date_str] = {"income": 0, "expense": 0}
+        daily_trend[date_str][tx["entry_type"]] += tx["amount"]
+
+    ordered_daily = []
+    for date_str in sorted(daily_trend.keys()):
+        income = daily_trend[date_str]["income"]
+        expense = daily_trend[date_str]["expense"]
+        net = income - expense
+        ordered_daily.append({
+            "date": date_str,
+            "income": income,
+            "expense": expense,
+            "net": net,
+            "amount": net,
+        })
     
     return {
-        "total": total,
-        "count": len(expenses),
+        "total": expense_total,
+        "count": len(transactions),
+        "income_total": income_total,
+        "expense_total": expense_total,
+        "net_total": net_total,
+        "income_count": income_count,
+        "expense_count": expense_count,
+        "by_type": [
+            {"entry_type": "income", "total": income_total, "count": income_count},
+            {"entry_type": "expense", "total": expense_total, "count": expense_count},
+        ],
         "by_category": list(by_category.values()),
-        "daily_trend": [{"date": k, "amount": v} for k, v in sorted(daily_trend.items())],
+        "daily_trend": ordered_daily,
         "period": period,
         "currency": user.preferred_currency
     }
@@ -731,10 +905,10 @@ async def export_expenses(
         else:
             query["date"] = {"$lte": end_date}
     
-    expenses = await db.expenses.find(query, {"_id": 0}).sort("date", -1).to_list(10000)
+    transactions = await db.expenses.find(query, {"_id": 0}).sort("date", -1).to_list(10000)
     categories = await db.categories.find({"user_id": user.user_id}, {"_id": 0}).to_list(100)
     
-    cat_map = {c["category_id"]: c for c in categories}
+    cat_map = {c["category_id"]: normalize_category_doc(c) for c in categories}
     subcat_map = {}
     for c in categories:
         for s in c.get("subcategories", []):
@@ -743,16 +917,18 @@ async def export_expenses(
     # Create CSV
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["Date", "Description", "Amount", "Currency", "Category", "Subcategory"])
+    writer.writerow(["Date", "Description", "Amount", "Type", "Currency", "Category", "Subcategory"])
     
-    for exp in expenses:
-        cat_name = cat_map.get(exp["category_id"], {}).get("name", "")
-        subcat_name = subcat_map.get(exp.get("subcategory_id"), {}).get("name", "")
+    for tx in transactions:
+        normalize_expense_doc(tx)
+        cat_name = cat_map.get(tx["category_id"], {}).get("name", "")
+        subcat_name = subcat_map.get(tx.get("subcategory_id"), {}).get("name", "")
         writer.writerow([
-            exp["date"][:10],
-            exp["description"],
-            exp["amount"],
-            exp["currency"],
+            tx["date"][:10],
+            tx["description"],
+            tx["amount"],
+            tx["entry_type"],
+            tx["currency"],
             cat_name,
             subcat_name
         ])
@@ -760,7 +936,7 @@ async def export_expenses(
     return Response(
         content=output.getvalue(),
         media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=expenses.csv"}
+        headers={"Content-Disposition": "attachment; filename=transactions.csv"}
     )
 
 @api_router.post("/reports/import")
@@ -773,11 +949,19 @@ async def import_expenses(request: Request, user: User = Depends(get_current_use
     
     # Get user's categories
     categories = await db.categories.find({"user_id": user.user_id}, {"_id": 0}).to_list(100)
-    cat_name_map = {c["name"].lower(): c for c in categories}
+    normalized_categories = [normalize_category_doc(c) for c in categories]
+    cat_name_type_map = {
+        (c["name"].lower(), c["entry_type"]): c for c in normalized_categories
+    }
+    fallback_cat_name_map = {}
+    for category in normalized_categories:
+        key = category["name"].lower()
+        if key not in fallback_cat_name_map:
+            fallback_cat_name_map[key] = category
     subcat_name_map = {}
-    for c in categories:
-        for s in c.get("subcategories", []):
-            subcat_name_map[s["name"].lower()] = {"subcat": s, "cat": c}
+    for category in normalized_categories:
+        for subcat in category.get("subcategories", []):
+            subcat_name_map[(subcat["name"].lower(), category["category_id"])] = subcat
     
     # Parse CSV
     reader = csv.DictReader(io.StringIO(csv_data))
@@ -786,17 +970,29 @@ async def import_expenses(request: Request, user: User = Depends(get_current_use
     
     for i, row in enumerate(reader):
         try:
+            entry_type = normalize_entry_type(row.get("Type"), "expense")
             cat_name = row.get("Category", "").lower()
             subcat_name = row.get("Subcategory", "").lower()
             
-            category = cat_name_map.get(cat_name)
+            category = cat_name_type_map.get((cat_name, entry_type))
+            if not category:
+                category = fallback_cat_name_map.get(cat_name)
             if not category:
                 errors.append(f"Row {i+2}: Category '{row.get('Category')}' not found")
                 continue
+
+            category_type = normalize_entry_type(category.get("entry_type"), "expense")
+            if category_type != entry_type:
+                errors.append(
+                    f"Row {i+2}: Category '{row.get('Category')}' is '{category_type}', but row type is '{entry_type}'"
+                )
+                continue
             
             subcategory_id = None
-            if subcat_name and subcat_name in subcat_name_map:
-                subcategory_id = subcat_name_map[subcat_name]["subcat"]["subcategory_id"]
+            if subcat_name:
+                subcat = subcat_name_map.get((subcat_name, category["category_id"]))
+                if subcat:
+                    subcategory_id = subcat["subcategory_id"]
             
             expense_id = f"exp_{uuid.uuid4().hex[:12]}"
             expense_doc = {
@@ -807,6 +1003,7 @@ async def import_expenses(request: Request, user: User = Depends(get_current_use
                 "description": row.get("Description", ""),
                 "category_id": category["category_id"],
                 "subcategory_id": subcategory_id,
+                "entry_type": entry_type,
                 "date": row.get("Date", datetime.now(timezone.utc).isoformat()[:10]),
                 "created_at": datetime.now(timezone.utc).isoformat()
             }
@@ -864,50 +1061,99 @@ async def get_dashboard_stats(user: User = Depends(get_current_user)):
     
     # Last month
     last_month = (now.replace(day=1) - timedelta(days=1)).replace(day=1)
-    last_month_end = now.replace(day=1) - timedelta(days=1)
     
-    # This month expenses
-    this_month_expenses = await db.expenses.find(
+    # This month transactions
+    this_month_transactions = await db.expenses.find(
         {"user_id": user.user_id, "date": {"$gte": month_start}},
         {"_id": 0}
     ).to_list(1000)
     
-    # Last month expenses
-    last_month_expenses = await db.expenses.find(
+    # Last month transactions
+    last_month_transactions = await db.expenses.find(
         {"user_id": user.user_id, "date": {"$gte": last_month.isoformat(), "$lt": month_start}},
         {"_id": 0}
     ).to_list(1000)
     
     # All time
-    all_expenses = await db.expenses.find({"user_id": user.user_id}, {"_id": 0}).to_list(10000)
+    all_transactions = await db.expenses.find({"user_id": user.user_id}, {"_id": 0}).to_list(10000)
+
+    def split_totals(transactions: List[Dict[str, Any]]) -> Dict[str, Any]:
+        normalized = [normalize_expense_doc(tx) for tx in transactions]
+        income = [tx for tx in normalized if tx["entry_type"] == "income"]
+        expense = [tx for tx in normalized if tx["entry_type"] == "expense"]
+
+        income_total = sum(tx["amount"] for tx in income)
+        expense_total = sum(tx["amount"] for tx in expense)
+        return {
+            "income_total": income_total,
+            "expense_total": expense_total,
+            "net_total": income_total - expense_total,
+            "income_count": len(income),
+            "expense_count": len(expense),
+            "total_count": len(normalized),
+        }
+
+    this_month = split_totals(this_month_transactions)
+    last_month_stats = split_totals(last_month_transactions)
+    all_time = split_totals(all_transactions)
     
-    this_month_total = sum(e["amount"] for e in this_month_expenses)
-    last_month_total = sum(e["amount"] for e in last_month_expenses)
-    all_time_total = sum(e["amount"] for e in all_expenses)
-    
-    # Percentage change
-    if last_month_total > 0:
-        change = ((this_month_total - last_month_total) / last_month_total) * 100
+    # Expense percentage change
+    if last_month_stats["expense_total"] > 0:
+        change = ((this_month["expense_total"] - last_month_stats["expense_total"]) / last_month_stats["expense_total"]) * 100
     else:
-        change = 100 if this_month_total > 0 else 0
+        change = 100 if this_month["expense_total"] > 0 else 0
+
+    # Net percentage change
+    if last_month_stats["net_total"] != 0:
+        net_change = ((this_month["net_total"] - last_month_stats["net_total"]) / abs(last_month_stats["net_total"])) * 100
+    else:
+        net_change = 100 if this_month["net_total"] > 0 else 0
     
     # Categories count
     categories = await db.categories.count_documents({"user_id": user.user_id})
     
     return {
         "this_month": {
-            "total": this_month_total,
-            "count": len(this_month_expenses)
+            "total": this_month["expense_total"],
+            "count": this_month["expense_count"]
         },
         "last_month": {
-            "total": last_month_total,
-            "count": len(last_month_expenses)
+            "total": last_month_stats["expense_total"],
+            "count": last_month_stats["expense_count"]
         },
         "all_time": {
-            "total": all_time_total,
-            "count": len(all_expenses)
+            "total": all_time["expense_total"],
+            "count": all_time["expense_count"]
         },
+        "this_month_income": {
+            "total": this_month["income_total"],
+            "count": this_month["income_count"]
+        },
+        "this_month_expense": {
+            "total": this_month["expense_total"],
+            "count": this_month["expense_count"]
+        },
+        "this_month_net": this_month["net_total"],
+        "last_month_income": {
+            "total": last_month_stats["income_total"],
+            "count": last_month_stats["income_count"]
+        },
+        "last_month_expense": {
+            "total": last_month_stats["expense_total"],
+            "count": last_month_stats["expense_count"]
+        },
+        "last_month_net": last_month_stats["net_total"],
+        "all_time_income": {
+            "total": all_time["income_total"],
+            "count": all_time["income_count"]
+        },
+        "all_time_expense": {
+            "total": all_time["expense_total"],
+            "count": all_time["expense_count"]
+        },
+        "all_time_net": all_time["net_total"],
         "change_percentage": round(change, 1),
+        "net_change_percentage": round(net_change, 1),
         "categories_count": categories,
         "currency": user.preferred_currency
     }
