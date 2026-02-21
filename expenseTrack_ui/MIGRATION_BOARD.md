@@ -211,7 +211,7 @@ Acceptance criteria:
 
 ## 8. Risks and Mitigations
 
-- SSR/browser API mismatch (`window`, file download): guard browser-only logic with platform checks.
+- Browser API mismatch (`window`, file download): guard browser-only logic with platform checks.
 - Chart parity risk from library differences: select chart library once and reuse across dashboard/reports.
 - Over-migrating UI primitives: migrate only used controls first, expand later.
 - Auth/session drift: centralize credentials handling in one interceptor and one auth service.

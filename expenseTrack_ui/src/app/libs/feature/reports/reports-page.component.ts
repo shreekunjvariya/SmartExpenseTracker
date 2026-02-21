@@ -1,8 +1,10 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../data-access/auth/auth.service';
 import { DashboardService } from '../../data-access/dashboard/dashboard.service';
 import { ExpensesService } from '../../data-access/expenses/expenses.service';
 import { ReportsService } from '../../data-access/reports/reports.service';
+import { catchError, of } from 'rxjs';
 import { EntryType, ReportCategorySummary, ReportSummary, User } from '../../../../models';
 
 type ReportPeriod = 'week' | 'month' | 'year';
@@ -19,6 +21,9 @@ export class ReportsPageComponent implements OnInit {
   private expenses = inject(ExpensesService);
   private dashboard = inject(DashboardService);
   private auth = inject(AuthService);
+  private cdr = inject(ChangeDetectorRef);
+  private destroyRef = inject(DestroyRef);
+  private destroyed = false;
 
   user: User | null = null;
   period: ReportPeriod = 'month';
@@ -32,12 +37,30 @@ export class ReportsPageComponent implements OnInit {
   error = '';
   success = '';
 
+  constructor() {
+    this.destroyRef.onDestroy(() => {
+      this.destroyed = true;
+    });
+  }
+
   ngOnInit(): void {
     this.user = this.auth.user;
     if (!this.user && this.auth.token) {
-      this.auth.me().subscribe({
-        next: (user) => (this.user = user),
-      });
+      this.auth
+        .me()
+        .pipe(
+          takeUntilDestroyed(this.destroyRef),
+          catchError(() => of<User | null>(null))
+        )
+        .subscribe({
+          next: (user) => {
+            if (!user) {
+              return;
+            }
+            this.user = user;
+            this.refreshView();
+          },
+        });
     }
     this.loadSummary();
   }
@@ -81,41 +104,53 @@ export class ReportsPageComponent implements OnInit {
   loadSummary(forceRefresh = false): void {
     this.loading = true;
     this.error = '';
-    this.reports.getSummary(this.period, forceRefresh).subscribe({
-      next: (data) => {
-        this.summary = data;
-        this.loading = false;
-      },
-      error: () => {
-        this.error = 'Failed to load report data.';
-        this.loading = false;
-      },
-    });
+    this.refreshView();
+
+    this.reports
+      .getSummary(this.period, forceRefresh)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (data) => {
+          this.summary = data;
+          this.loading = false;
+          this.refreshView();
+        },
+        error: () => {
+          this.error = 'Failed to load report data.';
+          this.loading = false;
+          this.refreshView();
+        },
+      });
   }
 
   exportCsv(): void {
     this.error = '';
     this.success = '';
 
-    this.reports.exportCsv(this.fromDate, this.toDate).subscribe({
-      next: (blob) => {
-        if (typeof window === 'undefined') {
-          return;
-        }
-        const url = window.URL.createObjectURL(blob);
-        const anchor = document.createElement('a');
-        anchor.href = url;
-        anchor.download = `transactions_${this.fromDate}_to_${this.toDate}.csv`;
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        window.URL.revokeObjectURL(url);
-        this.success = 'Export successful.';
-      },
-      error: () => {
-        this.error = 'Export failed.';
-      },
-    });
+    this.reports
+      .exportCsv(this.fromDate, this.toDate)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (blob) => {
+          if (typeof window === 'undefined') {
+            return;
+          }
+          const url = window.URL.createObjectURL(blob);
+          const anchor = document.createElement('a');
+          anchor.href = url;
+          anchor.download = `transactions_${this.fromDate}_to_${this.toDate}.csv`;
+          document.body.appendChild(anchor);
+          anchor.click();
+          anchor.remove();
+          window.URL.revokeObjectURL(url);
+          this.success = 'Export successful.';
+          this.refreshView();
+        },
+        error: () => {
+          this.error = 'Export failed.';
+          this.refreshView();
+        },
+      });
   }
 
   importCsv(): void {
@@ -127,23 +162,27 @@ export class ReportsPageComponent implements OnInit {
     this.error = '';
     this.success = '';
 
-    this.reports.importCsv(this.importData).subscribe({
-      next: (result) => {
-        this.success = `Imported ${result.imported} transactions.`;
-        if (result.errors?.length) {
-          this.error = `${result.errors.length} rows had errors.`;
-        }
-        this.importData = '';
-        this.importing = false;
-        this.expenses.invalidateListCache();
-        this.dashboard.invalidateCache();
-        this.loadSummary(true);
-      },
-      error: () => {
-        this.error = 'Import failed.';
-        this.importing = false;
-      },
-    });
+    this.reports
+      .importCsv(this.importData)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.success = `Imported ${result.imported} transactions.`;
+          if (result.errors?.length) {
+            this.error = `${result.errors.length} rows had errors.`;
+          }
+          this.importData = '';
+          this.importing = false;
+          this.expenses.invalidateListCache();
+          this.dashboard.invalidateCache();
+          this.loadSummary(true);
+        },
+        error: () => {
+          this.error = 'Import failed.';
+          this.importing = false;
+          this.refreshView();
+        },
+      });
   }
 
   formatCurrency(amount: number): string {
@@ -176,5 +215,14 @@ export class ReportsPageComponent implements OnInit {
     const date = new Date();
     date.setDate(date.getDate() + offsetDays);
     return date.toISOString().slice(0, 10);
+  }
+
+  private refreshView(): void {
+    queueMicrotask(() => {
+      if (this.destroyed) {
+        return;
+      }
+      this.cdr.detectChanges();
+    });
   }
 }

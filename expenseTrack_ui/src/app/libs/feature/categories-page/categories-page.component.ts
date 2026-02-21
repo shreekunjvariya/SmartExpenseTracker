@@ -1,4 +1,5 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, Validators } from '@angular/forms';
 import { CategoriesService } from '../../data-access/categories/categories.service';
 import { DashboardService } from '../../data-access/dashboard/dashboard.service';
@@ -16,6 +17,9 @@ export class CategoriesPageComponent implements OnInit {
   private dashboardService = inject(DashboardService);
   private fb = inject(FormBuilder);
   private reportsService = inject(ReportsService);
+  private cdr = inject(ChangeDetectorRef);
+  private destroyRef = inject(DestroyRef);
+  private destroyed = false;
 
   categories: Category[] = [];
   activeEntryType: EntryType = 'expense';
@@ -52,6 +56,12 @@ export class CategoriesPageComponent implements OnInit {
     name: ['', Validators.required],
     icon: ['tag', Validators.required],
   });
+
+  constructor() {
+    this.destroyRef.onDestroy(() => {
+      this.destroyed = true;
+    });
+  }
 
   ngOnInit(): void {
     this.fetchCategories();
@@ -115,17 +125,20 @@ export class CategoriesPageComponent implements OnInit {
       ? this.categoriesService.update(this.editingCategory.category_id, payload)
       : this.categoriesService.create(payload);
 
-    request$.subscribe({
-      next: () => {
-        this.success = this.editingCategory ? 'Category updated.' : 'Category created.';
-        this.closeCategoryDialog();
-        this.refreshAfterMutation();
-      },
-      error: () => {
-        this.error = 'Failed to save category.';
-        this.savingCategory = false;
-      },
-    });
+    request$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.success = this.editingCategory ? 'Category updated.' : 'Category created.';
+          this.closeCategoryDialog();
+          this.refreshAfterMutation();
+        },
+        error: () => {
+          this.error = 'Failed to save category.';
+          this.savingCategory = false;
+          this.refreshView();
+        },
+      });
   }
 
   deleteCategory(category: Category): void {
@@ -139,15 +152,19 @@ export class CategoriesPageComponent implements OnInit {
     this.error = '';
     this.success = '';
 
-    this.categoriesService.delete(category.category_id).subscribe({
-      next: () => {
-        this.success = 'Category deleted.';
-        this.refreshAfterMutation();
-      },
-      error: () => {
-        this.error = 'Failed to delete category.';
-      },
-    });
+    this.categoriesService
+      .delete(category.category_id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.success = 'Category deleted.';
+          this.refreshAfterMutation();
+        },
+        error: () => {
+          this.error = 'Failed to delete category.';
+          this.refreshView();
+        },
+      });
   }
 
   openSubcategoryDialog(categoryId: string): void {
@@ -176,17 +193,21 @@ export class CategoriesPageComponent implements OnInit {
     this.success = '';
 
     const payload = this.subcategoryForm.getRawValue();
-    this.categoriesService.addSubcategory(this.selectedCategoryId, payload).subscribe({
-      next: () => {
-        this.success = 'Subcategory added.';
-        this.closeSubcategoryDialog();
-        this.refreshAfterMutation();
-      },
-      error: () => {
-        this.error = 'Failed to add subcategory.';
-        this.savingSubcategory = false;
-      },
-    });
+    this.categoriesService
+      .addSubcategory(this.selectedCategoryId, payload)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.success = 'Subcategory added.';
+          this.closeSubcategoryDialog();
+          this.refreshAfterMutation();
+        },
+        error: () => {
+          this.error = 'Failed to add subcategory.';
+          this.savingSubcategory = false;
+          this.refreshView();
+        },
+      });
   }
 
   deleteSubcategory(categoryId: string, subcategoryId: string): void {
@@ -198,15 +219,19 @@ export class CategoriesPageComponent implements OnInit {
     this.error = '';
     this.success = '';
 
-    this.categoriesService.deleteSubcategory(categoryId, subcategoryId).subscribe({
-      next: () => {
-        this.success = 'Subcategory deleted.';
-        this.refreshAfterMutation();
-      },
-      error: () => {
-        this.error = 'Failed to delete subcategory.';
-      },
-    });
+    this.categoriesService
+      .deleteSubcategory(categoryId, subcategoryId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.success = 'Subcategory deleted.';
+          this.refreshAfterMutation();
+        },
+        error: () => {
+          this.error = 'Failed to delete subcategory.';
+          this.refreshView();
+        },
+      });
   }
 
   toggleExpanded(categoryId: string): void {
@@ -220,22 +245,37 @@ export class CategoriesPageComponent implements OnInit {
   private fetchCategories(forceRefresh = false): void {
     this.loading = true;
     this.error = '';
+    this.refreshView();
 
-    this.categoriesService.list(forceRefresh).subscribe({
-      next: (categories) => {
-        this.categories = categories;
-        this.loading = false;
-      },
-      error: () => {
-        this.error = 'Failed to load categories.';
-        this.loading = false;
-      },
-    });
+    this.categoriesService
+      .list(forceRefresh)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (categories) => {
+          this.categories = categories;
+          this.loading = false;
+          this.refreshView();
+        },
+        error: () => {
+          this.error = 'Failed to load categories.';
+          this.loading = false;
+          this.refreshView();
+        },
+      });
   }
 
   private refreshAfterMutation(): void {
     this.dashboardService.invalidateCache();
     this.reportsService.invalidateSummaryCache();
     this.fetchCategories(true);
+  }
+
+  private refreshView(): void {
+    queueMicrotask(() => {
+      if (this.destroyed) {
+        return;
+      }
+      this.cdr.detectChanges();
+    });
   }
 }

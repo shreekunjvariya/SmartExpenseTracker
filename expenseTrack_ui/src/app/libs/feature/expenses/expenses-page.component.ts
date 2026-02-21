@@ -1,7 +1,7 @@
-import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, Validators } from '@angular/forms';
-import { finalize, forkJoin, timeout } from 'rxjs';
+import { catchError, finalize, forkJoin, of, timeout } from 'rxjs';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../data-access/auth/auth.service';
 import { CategoriesService } from '../../data-access/categories/categories.service';
@@ -27,6 +27,8 @@ export class ExpensesPageComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private destroyRef = inject(DestroyRef);
+  private cdr = inject(ChangeDetectorRef);
+  private destroyed = false;
 
   user: User | null = null;
   expenses: Expense[] = [];
@@ -53,17 +55,33 @@ export class ExpensesPageComponent implements OnInit {
     date: [this.todayDate(), Validators.required],
   });
 
+  constructor() {
+    this.destroyRef.onDestroy(() => {
+      this.destroyed = true;
+    });
+  }
+
   ngOnInit(): void {
     this.watchAddExpenseIntent();
 
     this.user = this.auth.user;
     if (!this.user && this.auth.token) {
-      this.auth.me().subscribe({
-        next: (user) => {
-          this.user = user;
-          this.form.patchValue({ currency: user.preferred_currency || 'USD' });
-        },
-      });
+      this.auth
+        .me()
+        .pipe(
+          takeUntilDestroyed(this.destroyRef),
+          catchError(() => of<User | null>(null))
+        )
+        .subscribe({
+          next: (user) => {
+            if (!user) {
+              return;
+            }
+            this.user = user;
+            this.form.patchValue({ currency: user.preferred_currency || 'USD' });
+            this.refreshView();
+          },
+        });
     } else {
       this.form.patchValue({ currency: this.user?.preferred_currency || 'USD' });
     }
@@ -147,6 +165,15 @@ export class ExpensesPageComponent implements OnInit {
       category_id: '',
       subcategory_id: '',
     });
+  }
+
+  setDialogEntryType(entryType: EntryType): void {
+    if (this.form.controls.entry_type.value === entryType) {
+      return;
+    }
+
+    this.form.patchValue({ entry_type: entryType });
+    this.onEntryTypeChange();
   }
 
   onFilterCategorySelected(categoryId: string): void {
@@ -302,16 +329,29 @@ export class ExpensesPageComponent implements OnInit {
     forkJoin({
       expenses: this.expensesService.list(forceRefresh),
       categories: this.categoriesService.list(forceRefresh),
-    }).subscribe({
-      next: ({ expenses, categories }) => {
-        this.expenses = expenses;
-        this.categories = categories;
-        this.loading = false;
-      },
-      error: () => {
-        this.error = 'Failed to load expenses.';
-        this.loading = false;
-      },
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ expenses, categories }) => {
+          this.expenses = expenses;
+          this.categories = categories;
+          this.loading = false;
+          this.refreshView();
+        },
+        error: () => {
+          this.error = 'Failed to load expenses.';
+          this.loading = false;
+          this.refreshView();
+        },
+      });
+  }
+
+  private refreshView(): void {
+    queueMicrotask(() => {
+      if (this.destroyed) {
+        return;
+      }
+      this.cdr.detectChanges();
     });
   }
 
