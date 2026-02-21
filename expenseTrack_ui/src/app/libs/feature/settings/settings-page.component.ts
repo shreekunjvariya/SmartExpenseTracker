@@ -3,17 +3,7 @@ import { FormBuilder, Validators } from '@angular/forms';
 import { AuthService } from '../../data-access/auth/auth.service';
 import { CurrencyService } from '../../data-access/currency/currency.service';
 import { CurrencyConvertResponse, ProfileType, User } from '../../../../models';
-
-interface CurrencyOption {
-  code: string;
-  name: string;
-  symbol: string;
-}
-
-interface ProfileTypeOption {
-  value: ProfileType;
-  label: string;
-}
+import { PROFILE_OPTIONS, SETTINGS_CURRENCY_OPTIONS } from '../../shared/constants/options.constants';
 
 @Component({
   selector: 'settings-page',
@@ -38,34 +28,8 @@ export class SettingsPageComponent implements OnInit {
   convertError = '';
   convertResult: CurrencyConvertResponse | null = null;
 
-  readonly profileTypes: ProfileTypeOption[] = [
-    { value: 'salaried', label: 'Salaried Employee' },
-    { value: 'self_employed', label: 'Self Employed' },
-    { value: 'businessman', label: 'Business Owner' },
-  ];
-
-  readonly currencies: CurrencyOption[] = [
-    { code: 'USD', name: 'US Dollar', symbol: '$' },
-    { code: 'EUR', name: 'Euro', symbol: 'EUR' },
-    { code: 'GBP', name: 'British Pound', symbol: 'GBP' },
-    { code: 'JPY', name: 'Japanese Yen', symbol: 'JPY' },
-    { code: 'INR', name: 'Indian Rupee', symbol: 'INR' },
-    { code: 'CAD', name: 'Canadian Dollar', symbol: 'CAD' },
-    { code: 'AUD', name: 'Australian Dollar', symbol: 'AUD' },
-    { code: 'CNY', name: 'Chinese Yuan', symbol: 'CNY' },
-    { code: 'CHF', name: 'Swiss Franc', symbol: 'CHF' },
-    { code: 'MXN', name: 'Mexican Peso', symbol: 'MXN' },
-    { code: 'BRL', name: 'Brazilian Real', symbol: 'BRL' },
-    { code: 'KRW', name: 'South Korean Won', symbol: 'KRW' },
-    { code: 'SGD', name: 'Singapore Dollar', symbol: 'SGD' },
-    { code: 'HKD', name: 'Hong Kong Dollar', symbol: 'HKD' },
-    { code: 'SEK', name: 'Swedish Krona', symbol: 'SEK' },
-    { code: 'NOK', name: 'Norwegian Krone', symbol: 'NOK' },
-    { code: 'NZD', name: 'New Zealand Dollar', symbol: 'NZD' },
-    { code: 'ZAR', name: 'South African Rand', symbol: 'ZAR' },
-    { code: 'AED', name: 'UAE Dirham', symbol: 'AED' },
-    { code: 'SAR', name: 'Saudi Riyal', symbol: 'SAR' },
-  ];
+  readonly profileTypes = PROFILE_OPTIONS;
+  readonly currencies = SETTINGS_CURRENCY_OPTIONS;
 
   form = this.fb.nonNullable.group({
     name: ['', Validators.required],

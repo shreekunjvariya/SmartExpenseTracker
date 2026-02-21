@@ -10,13 +10,3 @@ export class AlertComponent {
   @Input() message = '';
   @Input() type: 'success' | 'error' = 'success';
 }
-
-@Component({
-  selector: 'ui-spinner',
-  standalone: false,
-  templateUrl: './spinner.component.html',
-  styleUrl: './spinner.component.scss',
-})
-export class SpinnerComponent {}
-
-

@@ -1,25 +1,20 @@
 import { CommonModule } from '@angular/common';
 import { TestBed } from '@angular/core/testing';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { ButtonComponent, InputComponent } from './input-button.component';
+import { InputComponent } from './input.component';
 
-describe('Input/Button Components', () => {
+describe('InputComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [CommonModule, ReactiveFormsModule],
-      declarations: [InputComponent, ButtonComponent],
+      declarations: [InputComponent],
     }).compileComponents();
   });
 
-  it('should create InputComponent', () => {
+  it('should create', () => {
     const fixture = TestBed.createComponent(InputComponent);
     fixture.componentInstance.formControl = new FormControl('');
     fixture.detectChanges();
-    expect(fixture.componentInstance).toBeTruthy();
-  });
-
-  it('should create ButtonComponent', () => {
-    const fixture = TestBed.createComponent(ButtonComponent);
     expect(fixture.componentInstance).toBeTruthy();
   });
 });

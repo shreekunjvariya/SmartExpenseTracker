@@ -3,7 +3,7 @@ import { RouterTestingModule } from '@angular/router/testing';
 import { of } from 'rxjs';
 import { AuthService } from '../../data-access/auth/auth.service';
 import { ProtectedLayoutComponent } from './protected-layout.component';
-import { SidebarComponent } from '../sidebar.component';
+import { SidebarComponent } from '../sidebar/sidebar.component';
 
 describe('ProtectedLayoutComponent', () => {
   beforeEach(async () => {

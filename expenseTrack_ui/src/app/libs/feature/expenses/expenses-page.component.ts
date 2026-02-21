@@ -9,11 +9,7 @@ import { DashboardService } from '../../data-access/dashboard/dashboard.service'
 import { ExpensesService } from '../../data-access/expenses/expenses.service';
 import { ReportsService } from '../../data-access/reports/reports.service';
 import { Category, EntryType, Expense, User } from '../../../../models';
-
-interface CurrencyOption {
-  code: string;
-  label: string;
-}
+import { EXPENSE_CURRENCY_OPTIONS } from '../../shared/constants/options.constants';
 
 @Component({
   selector: 'expenses-page',
@@ -45,15 +41,7 @@ export class ExpensesPageComponent implements OnInit {
   error = '';
   success = '';
 
-  readonly currencies: CurrencyOption[] = [
-    { code: 'USD', label: 'USD ($)' },
-    { code: 'EUR', label: 'EUR (EUR)' },
-    { code: 'GBP', label: 'GBP (GBP)' },
-    { code: 'INR', label: 'INR (INR)' },
-    { code: 'JPY', label: 'JPY (JPY)' },
-    { code: 'CAD', label: 'CAD (CAD)' },
-    { code: 'AUD', label: 'AUD (AUD)' },
-  ];
+  readonly currencies = EXPENSE_CURRENCY_OPTIONS;
 
   form = this.fb.nonNullable.group({
     amount: ['', Validators.required],
@@ -207,9 +195,7 @@ export class ExpensesPageComponent implements OnInit {
       this.error = 'Save response is delayed. Syncing latest expenses now.';
       this.dialogOpen = false;
       this.editingExpense = null;
-      this.dashboardService.invalidateCache();
-      this.reportsService.invalidateSummaryCache();
-      this.fetchData(true);
+      this.syncAfterMutation();
     }, 10000);
 
     request$
@@ -225,18 +211,14 @@ export class ExpensesPageComponent implements OnInit {
           this.success = this.editingExpense ? 'Expense updated.' : 'Expense added.';
           this.dialogOpen = false;
           this.editingExpense = null;
-          this.dashboardService.invalidateCache();
-          this.reportsService.invalidateSummaryCache();
-          this.fetchData(true);
+          this.syncAfterMutation();
         },
         error: (error) => {
           if (error?.name === 'TimeoutError') {
             this.error = 'Save request timed out. Syncing latest expenses now.';
             this.dialogOpen = false;
             this.editingExpense = null;
-            this.dashboardService.invalidateCache();
-            this.reportsService.invalidateSummaryCache();
-            this.fetchData(true);
+            this.syncAfterMutation();
             return;
           }
 
@@ -257,9 +239,7 @@ export class ExpensesPageComponent implements OnInit {
     this.expensesService.delete(expense.expense_id).subscribe({
       next: () => {
         this.success = 'Expense deleted.';
-        this.dashboardService.invalidateCache();
-        this.reportsService.invalidateSummaryCache();
-        this.fetchData(true);
+        this.syncAfterMutation();
       },
       error: () => {
         this.error = 'Failed to delete expense.';
@@ -341,32 +321,14 @@ export class ExpensesPageComponent implements OnInit {
       .subscribe((params) => {
         if (params.get('action') !== 'add') {
           if (params.get('action') === 'add-income') {
-            this.openAddDialog('income');
-            this.router.navigate([], {
-              relativeTo: this.route,
-              queryParams: { action: null },
-              queryParamsHandling: 'merge',
-              replaceUrl: true,
-            });
+            this.openDialogFromQuery('income');
           } else if (params.get('action') === 'add-expense') {
-            this.openAddDialog('expense');
-            this.router.navigate([], {
-              relativeTo: this.route,
-              queryParams: { action: null },
-              queryParamsHandling: 'merge',
-              replaceUrl: true,
-            });
+            this.openDialogFromQuery('expense');
           }
           return;
         }
 
-        this.openAddDialog('expense');
-        this.router.navigate([], {
-          relativeTo: this.route,
-          queryParams: { action: null },
-          queryParamsHandling: 'merge',
-          replaceUrl: true,
-        });
+        this.openDialogFromQuery('expense');
       });
   }
 
@@ -380,5 +342,21 @@ export class ExpensesPageComponent implements OnInit {
       return value.slice(0, 10);
     }
     return parsed.toISOString().slice(0, 10);
+  }
+
+  private syncAfterMutation(): void {
+    this.dashboardService.invalidateCache();
+    this.reportsService.invalidateSummaryCache();
+    this.fetchData(true);
+  }
+
+  private openDialogFromQuery(entryType: EntryType): void {
+    this.openAddDialog(entryType);
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { action: null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
   }
 }

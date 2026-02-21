@@ -6,8 +6,6 @@ import { Component } from '@angular/core';
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
-export class App {
-  protected title = 'expenseTrack_ui';
-}
+export class App {}
 
 

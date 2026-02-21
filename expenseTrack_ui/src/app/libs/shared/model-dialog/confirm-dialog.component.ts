@@ -1,15 +1,4 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
-
-@Component({
-  selector: 'ui-modal',
-  standalone: false,
-  templateUrl: './modal.component.html',
-  styleUrl: './modal.component.scss',
-})
-export class ModalComponent {
-  @Input() open = false;
-  @Output() openChange = new EventEmitter<boolean>();
-}
+import { Component, EventEmitter, Input, Output } from '@angular/core';
 
 @Component({
   selector: 'ui-confirm-dialog',
@@ -24,5 +13,3 @@ export class ConfirmDialogComponent {
   @Output() confirm = new EventEmitter<void>();
   @Output() cancel = new EventEmitter<void>();
 }
-
-

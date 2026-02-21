@@ -1,177 +1,247 @@
-# ExpenseTrack
+# ExpenseTrack Monorepo
 
-ExpenseTrack is a modern, full-stack expense tracking application designed for precision, elegance, and a premium user experience. It helps users manage their finances with multi-currency support, detailed analytics, and a beautiful, custom UI.
+This repository contains one backend service and two frontend codebases:
 
----
+- `backend`: FastAPI + MongoDB API for auth, categories, expenses, reports, currencies, dashboard.
+- `expenseTrack_ui`: Angular 21 (Nx workspace) UI, currently the primary migration target.
+- `frontend`: Legacy React UI (kept for parity/reference during migration).
 
-## Project Summary
+## Repository Layout
 
-- **Elegant Swiss-inspired UI/UX**
-- Multiple user profiles (salaried, self-employed, businessman)
-- Multi-currency expense tracking
-- Detailed reports and analytics
-
----
-
-## Tech Stack
-
-**Backend:** FastAPI (Python), MongoDB (Motor), JWT (PyJWT), bcrypt, Pydantic, Uvicorn, Starlette CORS
-
-**Frontend:** React 19, Tailwind CSS, Radix UI, React Hook Form, Zod, Axios, Sonner, Recharts
-
----
-
-## Project Structure
-
-```
+```text
 ExpenseTrack/
-├── src/
-│   ├── backend/
-│   │   ├── server.py              # Main FastAPI application
-│   │   ├── requirements.txt       # Python dependencies
-│   │   └── .env                   # Environment variables
-│   ├── frontend/
-│   │   ├── public/
-│   │   │   └── index.html
-│   │   ├── src/
-│   │   │   ├── App.js             # Main routing component
-│   │   │   ├── index.js           # Entry point
-│   │   │   ├── pages/             # Page components
-│   │   │   ├── components/        # Shared and UI components
-│   │   │   ├── hooks/             # Custom React hooks
-│   │   │   └── lib/               # Utility functions
-│   │   ├── package.json
-│   │   ├── craco.config.js
-│   │   ├── tailwind.config.js
-│   │   └── postcss.config.js
-│   ├── design_guidelines.json     # Design system
-│   ├── auth_testing.md            # Auth testing guide
-│   ├── test_result.md             # Test documentation
-│   └── README.md
-└── tests/
-	└── __init__.py
+├─ backend/
+│  ├─ server.py
+│  ├─ requirements.txt
+│  └─ .env
+├─ expenseTrack_ui/
+│  ├─ src/app/
+│  │  ├─ core/                 # auth guard + HTTP interceptor
+│  │  ├─ libs/
+│  │  │  ├─ data-access/       # API services
+│  │  │  ├─ feature/           # page components
+│  │  │  ├─ layout/            # protected shell + sidebar
+│  │  │  └─ shared/            # reusable UI components + constants
+│  │  ├─ app.module.ts
+│  │  ├─ app.routes.ts
+│  │  └─ app.ts
+│  ├─ src/models/index.ts
+│  └─ package.json
+├─ frontend/
+│  ├─ src/pages/               # legacy React pages
+│  ├─ src/components/
+│  └─ package.json
+├─ design_guidelines.json
+├─ auth_testing.md
+└─ test_result.md
 ```
 
----
+## Architecture Overview
 
-## Key Features
+1. UI authenticates with `POST /api/auth/login` or `POST /api/auth/register`.
+2. Backend returns JWT and also sets `session_token` cookie.
+3. Angular interceptor (`expenseTrack_ui/src/app/core/interceptors/auth.interceptor.ts`) sends:
+   - `Authorization: Bearer <token>` when available
+   - `withCredentials: true` for cookie-based requests
+4. Protected routes are guarded by `authGuard` (`expenseTrack_ui/src/app/core/guards/auth.guard.ts`).
+5. Data-access services call backend endpoints and cache selected responses (short TTL).
 
-- **Authentication:** JWT-based (email/password only), secure password hashing (bcrypt)
-- **User Management:** Multiple profiles, preferences, profile picture
-- **Expense Tracking:** CRUD, categories, multi-currency, date filtering
-- **Categories:** Pre-defined/custom, management UI, income/expense/investment
-- **Reports & Analytics:** Visualizations, trends, comparisons (Recharts)
-- **Dashboard:** Recent transactions, summary stats, quick actions
+## Backend Service (`backend`)
 
----
+### Stack
 
-## Database Models (MongoDB)
+- FastAPI
+- Motor (MongoDB async driver)
+- JWT (`pyjwt`)
+- `bcrypt` password hashing
+- Pydantic models/validation
 
-**users**: user_id, email, name, profile_type, preferred_currency, picture, created_at
-**categories**: user_id, category_id, name, color, icon, subcategories, created_at
-**expenses**: user_id, expense_id, category_id, amount, currency, date, description, created_at
+### Main File
 
-Collections and schemas are managed automatically by the backend—no manual setup required.
+- `backend/server.py`: contains models, auth helpers, endpoint handlers, and app setup.
 
----
+### API Surface
 
-## API Endpoints (FastAPI)
+- Auth
+  - `POST /api/auth/register`
+  - `POST /api/auth/login`
+  - `GET /api/auth/me`
+  - `POST /api/auth/logout`
+  - `PUT /api/auth/profile`
+- Categories
+  - `GET /api/categories`
+  - `POST /api/categories`
+  - `PUT /api/categories/{category_id}`
+  - `DELETE /api/categories/{category_id}`
+  - `POST /api/categories/{category_id}/subcategories`
+  - `DELETE /api/categories/{category_id}/subcategories/{subcategory_id}`
+- Expenses
+  - `GET /api/expenses`
+  - `POST /api/expenses`
+  - `PUT /api/expenses/{expense_id}`
+  - `DELETE /api/expenses/{expense_id}`
+- Reports
+  - `GET /api/reports/summary`
+  - `GET /api/reports/export`
+  - `POST /api/reports/import`
+- Currency + Dashboard
+  - `GET /api/currencies`
+  - `GET /api/currencies/convert`
+  - `GET /api/dashboard/stats`
 
-**/api/auth/**: register, login, me, logout
-**/api/expenses/**: list, create, update, delete
-**/api/categories/**: list, create, update, delete
-**/api/reports/**: summary, export, import
+### Backend Environment Variables
 
----
+Use `backend/.env`:
 
-## Environment Configuration
-
-**Backend (.env):**
-
-```
+```env
 MONGO_URL=mongodb://localhost:27017
 DB_NAME=expense_tracker_db
-JWT_SECRET=your-secret-key
-JWT_ALGORITHM=HS256
-JWT_EXPIRATION_DAYS=7
+CORS_ORIGINS=http://localhost:3000,http://localhost:4200
+JWT_SECRET=replace-with-secure-secret
+COOKIE_SECURE=false
+COOKIE_SAMESITE=lax
 ```
 
-**Frontend (.env):**
+### Run Backend
 
+```bash
+cd backend
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn server:app --reload --host 127.0.0.1 --port 8000
 ```
+
+Docs: `http://localhost:8000/docs`
+
+## Angular UI (`expenseTrack_ui`)
+
+### Stack
+
+- Angular 21 + Nx
+- Angular Material (selected controls)
+- RxJS
+- Jest + Playwright (workspace setup present)
+
+### Route Map
+
+Defined in `expenseTrack_ui/src/app/app.routes.ts`:
+
+- Public: `/`, `/login`, `/register`
+- Protected (under `ProtectedLayoutComponent` + `authGuard`):
+  - `/dashboard`
+  - `/expenses`
+  - `/categories`
+  - `/reports`
+  - `/settings`
+
+### Feature/Service Mapping
+
+- `libs/data-access/auth/auth.service.ts` <-> auth endpoints
+- `libs/data-access/categories/categories.service.ts` <-> category endpoints
+- `libs/data-access/expenses/expenses.service.ts` <-> expense endpoints
+- `libs/data-access/reports/reports.service.ts` <-> report endpoints
+- `libs/data-access/dashboard/dashboard.service.ts` <-> dashboard + monthly summary
+- `libs/data-access/currency/currency.service.ts` <-> currency conversion
+
+### Shared UI Components
+
+Shared components now follow one component per file with matching files:
+
+- `*.component.ts`
+- `*.component.html`
+- `*.component.scss`
+- `*.component.spec.ts`
+
+Examples:
+
+- `libs/shared/alert-spinner/alert.component.*`
+- `libs/shared/alert-spinner/spinner.component.*`
+- `libs/shared/input-button/input.component.*`
+- `libs/shared/input-button/button.component.*`
+- `libs/shared/model-dialog/modal.component.*`
+- `libs/shared/model-dialog/confirm-dialog.component.*`
+- `libs/shared/card-component/card*.component.*`
+
+### Angular Environment
+
+- `expenseTrack_ui/src/environments/environment.ts`
+- `expenseTrack_ui/src/environments/environment.development.ts`
+
+Both currently point to:
+
+```ts
+apiBaseUrl: 'http://localhost:8000/api'
+```
+
+### Run Angular UI
+
+```bash
+cd expenseTrack_ui
+npm install
+npx nx serve expenseTrack_ui
+```
+
+Common tasks:
+
+```bash
+npx nx build expenseTrack_ui
+npx nx test expenseTrack_ui
+```
+
+## Legacy React UI (`frontend`)
+
+This app is still present for migration parity/reference.
+
+### Stack
+
+- React 19
+- CRACO + Tailwind + Radix/shadcn-style UI components
+
+### Environment
+
+`frontend/.env` currently uses:
+
+```env
 REACT_APP_BACKEND_URL=http://localhost:8000
 ```
 
----
-
-## Getting Started
-
-### Backend
+### Run React UI
 
 ```bash
-cd src/backend
-pip install -r requirements.txt
-python server.py
-```
-
-### Frontend
-
-```bash
-cd src/frontend
+cd frontend
 npm install
 npm start
 ```
 
-### Access
+## Data Models (Shared Concepts)
 
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8000
-- API Docs: http://localhost:8000/docs
+- User: auth/profile, preferred currency, profile type
+- Category: entry type (`expense`/`income`) + optional subcategories
+- Expense: amount, currency, date, entry type, category/subcategory
+- Report summary: totals, by-type, by-category, daily trend
 
----
+Type definitions used by Angular live in `expenseTrack_ui/src/models/index.ts`.
 
-## Development & Design
+## Testing and Quality
 
-- Modular code: backend (routes, models), frontend (pages, components, hooks)
-- UI: Tailwind CSS, Radix UI, custom design system (see design_guidelines.json)
-- Forms: React Hook Form + Zod
-- Charts: Recharts
-- Toasts: Sonner
+### Backend
 
----
+- `pytest`
+- formatting/lint tools available in requirements: `black`, `isort`, `flake8`, `mypy`
 
-## Best Practices
+### Angular (`expenseTrack_ui`)
 
-- Use Pydantic for backend validation
-- Use React Hook Form + Zod for frontend forms
-- Validate input on both client and server
-- Use environment variables for secrets/config
-- CORS enabled for local dev
-- All protected routes require JWT
+- unit tests: Jest (`*.spec.ts`)
+- e2e scaffold: Playwright (`expenseTrack_ui/e2e`)
+- Nx task runner for build/test/lint targets
 
----
+### React (`frontend`)
 
-## Testing
+- CRA/CRACO test/build scripts (`npm test`, `npm run build`)
 
-- Backend: unit/integration tests, auth flow, DB transactions
-- Frontend: component/integration/E2E tests
+## Current State Notes
 
----
-
-## Deployment
-
-- Backend: Deploy FastAPI (Heroku, AWS, DigitalOcean, etc.)
-- Frontend: Deploy static build (Netlify, Vercel, S3, etc.)
-- Database: MongoDB Atlas or self-hosted
-
----
-
-## Contributing
-
-See the code structure, follow the design system, and use the provided instructions and testing guides. For questions, see the respective README or instructions.md files in backend/frontend.
-
----
-
-## License
-
-MIT
+- Angular workspace is the active migration target from React.
+- Legacy React is still useful for behavior comparison.
+- Backend is single-file (`server.py`), so endpoint and helper changes are centralized there.

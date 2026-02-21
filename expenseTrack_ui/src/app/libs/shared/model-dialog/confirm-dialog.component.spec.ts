@@ -1,17 +1,18 @@
 import { CommonModule } from '@angular/common';
 import { TestBed } from '@angular/core/testing';
-import { CardComponent } from './card.component';
+import { ConfirmDialogComponent } from './confirm-dialog.component';
+import { ModalComponent } from './modal.component';
 
-describe('CardComponent', () => {
+describe('ConfirmDialogComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [CommonModule],
-      declarations: [CardComponent],
+      declarations: [ConfirmDialogComponent, ModalComponent],
     }).compileComponents();
   });
 
   it('should create', () => {
-    const fixture = TestBed.createComponent(CardComponent);
+    const fixture = TestBed.createComponent(ConfirmDialogComponent);
     expect(fixture.componentInstance).toBeTruthy();
   });
 });

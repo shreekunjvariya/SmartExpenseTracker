@@ -119,9 +119,7 @@ export class CategoriesPageComponent implements OnInit {
       next: () => {
         this.success = this.editingCategory ? 'Category updated.' : 'Category created.';
         this.closeCategoryDialog();
-        this.dashboardService.invalidateCache();
-        this.reportsService.invalidateSummaryCache();
-        this.fetchCategories(true);
+        this.refreshAfterMutation();
       },
       error: () => {
         this.error = 'Failed to save category.';
@@ -144,9 +142,7 @@ export class CategoriesPageComponent implements OnInit {
     this.categoriesService.delete(category.category_id).subscribe({
       next: () => {
         this.success = 'Category deleted.';
-        this.dashboardService.invalidateCache();
-        this.reportsService.invalidateSummaryCache();
-        this.fetchCategories(true);
+        this.refreshAfterMutation();
       },
       error: () => {
         this.error = 'Failed to delete category.';
@@ -184,9 +180,7 @@ export class CategoriesPageComponent implements OnInit {
       next: () => {
         this.success = 'Subcategory added.';
         this.closeSubcategoryDialog();
-        this.dashboardService.invalidateCache();
-        this.reportsService.invalidateSummaryCache();
-        this.fetchCategories(true);
+        this.refreshAfterMutation();
       },
       error: () => {
         this.error = 'Failed to add subcategory.';
@@ -207,9 +201,7 @@ export class CategoriesPageComponent implements OnInit {
     this.categoriesService.deleteSubcategory(categoryId, subcategoryId).subscribe({
       next: () => {
         this.success = 'Subcategory deleted.';
-        this.dashboardService.invalidateCache();
-        this.reportsService.invalidateSummaryCache();
-        this.fetchCategories(true);
+        this.refreshAfterMutation();
       },
       error: () => {
         this.error = 'Failed to delete subcategory.';
@@ -239,5 +231,11 @@ export class CategoriesPageComponent implements OnInit {
         this.loading = false;
       },
     });
+  }
+
+  private refreshAfterMutation(): void {
+    this.dashboardService.invalidateCache();
+    this.reportsService.invalidateSummaryCache();
+    this.fetchCategories(true);
   }
 }
