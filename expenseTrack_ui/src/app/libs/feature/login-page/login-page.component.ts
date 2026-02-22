@@ -1,7 +1,7 @@
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../data-access/auth/auth.service';
-import { Router } from '@angular/router';
 
 @Component({
   selector: 'login-page',
@@ -9,15 +9,26 @@ import { Router } from '@angular/router';
   templateUrl: './login-page.component.html',
   styleUrl: './login-page.component.scss',
 })
-export class LoginPageComponent {
+export class LoginPageComponent implements OnInit {
   private auth = inject(AuthService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
+
   form = inject(FormBuilder).nonNullable.group({
     email: ['', [Validators.required, Validators.email]],
     password: ['', Validators.required],
   });
+
   loading = false;
   error = '';
+  infoMessage = '';
+
+  ngOnInit(): void {
+    const reason = this.route.snapshot.queryParamMap.get('reason');
+    if (reason === 'session_timeout') {
+      this.infoMessage = 'Your session expired due to inactivity. Please sign in again.';
+    }
+  }
 
   onSubmit(): void {
     if (this.form.invalid) {
@@ -41,6 +52,3 @@ export class LoginPageComponent {
     });
   }
 }
-
-
-

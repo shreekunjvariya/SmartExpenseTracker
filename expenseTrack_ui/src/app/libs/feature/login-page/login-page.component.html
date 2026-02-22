@@ -48,6 +48,8 @@
         </button>
       </form>
 
+      <p class="info" *ngIf="infoMessage">{{ infoMessage }}</p>
+
       <p class="switch-link">
         Don't have an account?
         <a routerLink="/register" data-testid="register-link">Create one</a>

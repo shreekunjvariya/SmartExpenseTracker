@@ -25,7 +25,9 @@ db = client[os.environ['DB_NAME']]
 # JWT Configuration
 JWT_SECRET = os.environ.get('JWT_SECRET', 'expense-tracker-secret-key-2024')
 JWT_ALGORITHM = "HS256"
-JWT_EXPIRATION_DAYS = 7
+ACCESS_TOKEN_MINUTES = int(os.environ.get("ACCESS_TOKEN_MINUTES", "15"))
+SESSION_IDLE_MINUTES = int(os.environ.get("SESSION_IDLE_MINUTES", "120"))
+SESSION_ABSOLUTE_HOURS = int(os.environ.get("SESSION_ABSOLUTE_HOURS", "24"))
 COOKIE_SECURE = os.environ.get('COOKIE_SECURE', 'false').lower() == 'true'
 COOKIE_SAMESITE = os.environ.get('COOKIE_SAMESITE', 'lax').lower()
 if COOKIE_SAMESITE not in {"lax", "strict", "none"}:
@@ -349,8 +351,32 @@ def set_session_cookie(response: Response, token: str) -> None:
         secure=COOKIE_SECURE,
         samesite=COOKIE_SAMESITE,
         path="/",
-        max_age=JWT_EXPIRATION_DAYS * 24 * 60 * 60
+        max_age=SESSION_ABSOLUTE_HOURS * 60 * 60
     )
+
+
+def get_client_ip(request: Request) -> str:
+    x_forwarded_for = request.headers.get("x-forwarded-for")
+    if x_forwarded_for:
+        return x_forwarded_for.split(",")[0].strip()
+    client_host = request.client.host if request.client else None
+    return client_host or "unknown"
+
+
+def create_session_doc(user_id: str, request: Request) -> Dict[str, Any]:
+    now = datetime.now(timezone.utc)
+    session_id = f"sess_{uuid.uuid4().hex[:16]}"
+    return {
+        "session_id": session_id,
+        "user_id": user_id,
+        "created_at": now.isoformat(),
+        "last_activity_at": now.isoformat(),
+        "idle_expires_at": (now + timedelta(minutes=SESSION_IDLE_MINUTES)).isoformat(),
+        "absolute_expires_at": (now + timedelta(hours=SESSION_ABSOLUTE_HOURS)).isoformat(),
+        "revoked": False,
+        "ip": get_client_ip(request),
+        "user_agent": request.headers.get("user-agent", "unknown"),
+    }
 
 def build_auth_response(user_doc: Dict[str, Any], token: str) -> Dict[str, Any]:
     return {
@@ -379,11 +405,13 @@ def hash_password(password: str) -> str:
 def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
 
-def create_jwt_token(user_id: str) -> str:
+def create_jwt_token(user_id: str, session_id: str) -> str:
+    now = datetime.now(timezone.utc)
     payload = {
         "user_id": user_id,
-        "exp": datetime.now(timezone.utc) + timedelta(days=JWT_EXPIRATION_DAYS),
-        "iat": datetime.now(timezone.utc)
+        "sid": session_id,
+        "exp": now + timedelta(minutes=ACCESS_TOKEN_MINUTES),
+        "iat": now
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
@@ -399,26 +427,63 @@ def decode_jwt_token(token: str) -> Optional[dict]:
 async def get_current_user(request: Request) -> User:
     # Check cookie first
     session_token = request.cookies.get("session_token")
-    
+
     # Then check Authorization header
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
         if not session_token:
             session_token = token
-    
+
     if not session_token:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    # Check if it's a JWT token
+
     payload = decode_jwt_token(session_token)
-    if payload:
-        user_doc = await db.users.find_one({"user_id": payload["user_id"]}, {"_id": 0})
-        if user_doc:
-            return User(**user_doc)
-    
-    # Only JWT tokens are supported for authentication.
-    raise HTTPException(status_code=401, detail="Invalid token")
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    user_id = payload.get("user_id")
+    session_id = payload.get("sid")
+    if not user_id or not session_id:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    session_doc = await db.user_sessions.find_one({"session_id": session_id, "user_id": user_id}, {"_id": 0})
+    if not session_doc or session_doc.get("revoked"):
+        raise HTTPException(status_code=401, detail="Session revoked")
+
+    now = datetime.now(timezone.utc)
+    idle_expires_at = session_doc.get("idle_expires_at")
+    absolute_expires_at = session_doc.get("absolute_expires_at")
+
+    try:
+        idle_expiry_dt = datetime.fromisoformat(idle_expires_at) if idle_expires_at else None
+        absolute_expiry_dt = datetime.fromisoformat(absolute_expires_at) if absolute_expires_at else None
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid session")
+
+    if idle_expiry_dt and idle_expiry_dt <= now:
+        await db.user_sessions.update_one({"session_id": session_id}, {"$set": {"revoked": True, "revoked_reason": "idle_timeout"}})
+        raise HTTPException(status_code=401, detail="SESSION_IDLE_TIMEOUT")
+
+    if absolute_expiry_dt and absolute_expiry_dt <= now:
+        await db.user_sessions.update_one({"session_id": session_id}, {"$set": {"revoked": True, "revoked_reason": "absolute_timeout"}})
+        raise HTTPException(status_code=401, detail="SESSION_EXPIRED")
+
+    await db.user_sessions.update_one(
+        {"session_id": session_id},
+        {
+            "$set": {
+                "last_activity_at": now.isoformat(),
+                "idle_expires_at": (now + timedelta(minutes=SESSION_IDLE_MINUTES)).isoformat(),
+            }
+        },
+    )
+
+    user_doc = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    if not user_doc:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    return User(**user_doc)
 
 async def create_default_categories(user_id: str, profile_type: str):
     expense_categories = DEFAULT_CATEGORIES.get(profile_type, DEFAULT_CATEGORIES["salaried"])
@@ -489,7 +554,7 @@ async def ensure_category_for_entry_type(category_id: str, user_id: str, entry_t
 # ==================== AUTH ENDPOINTS ====================
 
 @api_router.post("/auth/register")
-async def register(user_data: UserCreate, response: Response):
+async def register(user_data: UserCreate, request: Request, response: Response):
     existing = await db.users.find_one({"email": user_data.email}, {"_id": 0})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -512,14 +577,16 @@ async def register(user_data: UserCreate, response: Response):
     # Create default categories
     await create_default_categories(user_id, user_data.profile_type)
     
-    # Create JWT token
-    token = create_jwt_token(user_id)
+    session_doc = create_session_doc(user_id, request)
+    await db.user_sessions.insert_one(session_doc)
+
+    token = create_jwt_token(user_id, session_doc["session_id"])
 
     set_session_cookie(response, token)
     return build_auth_response(user_doc, token)
 
 @api_router.post("/auth/login")
-async def login(credentials: UserLogin, response: Response):
+async def login(credentials: UserLogin, request: Request, response: Response):
     user_doc = await db.users.find_one({"email": credentials.email}, {"_id": 0})
 
     if not user_doc:
@@ -528,8 +595,11 @@ async def login(credentials: UserLogin, response: Response):
     if not verify_password(credentials.password, user_doc.get("password_hash", "")):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
-    token = create_jwt_token(user_doc["user_id"])
-    
+    session_doc = create_session_doc(user_doc["user_id"], request)
+    await db.user_sessions.insert_one(session_doc)
+
+    token = create_jwt_token(user_doc["user_id"], session_doc["session_id"])
+
     set_session_cookie(response, token)
     return build_auth_response(user_doc, token)
 
@@ -549,9 +619,20 @@ async def get_me(user: User = Depends(get_current_user)):
 @api_router.post("/auth/logout")
 async def logout(request: Request, response: Response):
     session_token = request.cookies.get("session_token")
+    if not session_token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            session_token = auth_header.split(" ")[1]
+
     if session_token:
-        await db.user_sessions.delete_one({"session_token": session_token})
-    
+        payload = decode_jwt_token(session_token)
+        session_id = payload.get("sid") if payload else None
+        if session_id:
+            await db.user_sessions.update_one(
+                {"session_id": session_id},
+                {"$set": {"revoked": True, "revoked_reason": "logout", "revoked_at": datetime.now(timezone.utc).isoformat()}},
+            )
+
     response.delete_cookie(
         key="session_token",
         path="/",
@@ -1008,6 +1089,9 @@ async def ensure_db_indexes():
         await db.categories.create_index([("user_id", 1), ("entry_type", 1)])
         await db.categories.create_index([("user_id", 1), ("category_id", 1)])
         await db.users.create_index([("email", 1)])
+        await db.user_sessions.create_index([("session_id", 1)], unique=True)
+        await db.user_sessions.create_index([("user_id", 1), ("revoked", 1)])
+        await db.user_sessions.create_index([("absolute_expires_at", 1)])
     except Exception as exc:
         logger.warning("Unable to ensure database indexes: %s", exc)
 
