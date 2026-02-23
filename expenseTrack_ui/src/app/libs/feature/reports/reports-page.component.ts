@@ -336,6 +336,11 @@ export class ReportsPageComponent implements OnInit {
     return Number(((category.total / denominator) * 100).toFixed(1));
   }
 
+
+  barHeightPercent(value: number): number {
+    return (Math.abs(value) / this.maxTrendValue) * 100;
+  }
+
   typeLabel(entryType: EntryType): string {
     return entryType === 'income' ? 'Income' : 'Expense';
   }

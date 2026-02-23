@@ -139,7 +139,7 @@
           <div *ngIf="trendPoints.length && chartType === 'bar'" class="trend-bars">
             <div class="bar-item" *ngFor="let point of trendPoints">
               <div class="bar-track">
-                <span class="bar-fill" [class.negative]="point.value < 0" [style.height.%]="(Math.abs(point.value) / maxTrendValue) * 100"></span>
+                <span class="bar-fill" [class.negative]="point.value < 0" [style.height.%]="barHeightPercent(point.value)"></span>
               </div>
               <small>{{ point.date.slice(5) }}</small>
             </div>
