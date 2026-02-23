@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { FormsModule } from '@angular/forms';
 import { of } from 'rxjs';
+import { createAnalyticsSnapshot } from '../../shared/analytics/analytics-calculations';
 import { AuthService } from '../../data-access/auth/auth.service';
 import { DashboardService } from '../../data-access/dashboard/dashboard.service';
 import { ExpensesService } from '../../data-access/expenses/expenses.service';
@@ -16,22 +17,8 @@ describe('ReportsPageComponent', () => {
         {
           provide: ReportsService,
           useValue: {
-            getSummary: jest.fn(() =>
-              of({
-                total: 0,
-                count: 0,
-                income_total: 0,
-                expense_total: 0,
-                net_total: 0,
-                income_count: 0,
-                expense_count: 0,
-                by_type: [],
-                by_category: [],
-                daily_trend: [],
-                period: 'month',
-                currency: 'USD',
-              })
-            ),
+            getSummary: jest.fn(),
+            getAnalyticsSnapshot: jest.fn(() => of(createAnalyticsSnapshot([], [], 'USD'))),
             exportCsv: jest.fn(() => of(new Blob())),
             importCsv: jest.fn(() => of({ imported: 0, errors: [] })),
             invalidateSummaryCache: jest.fn(),
