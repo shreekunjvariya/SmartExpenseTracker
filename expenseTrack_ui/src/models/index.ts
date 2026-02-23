@@ -1,6 +1,18 @@
 export type ProfileType = 'salaried' | 'self_employed' | 'businessman';
 export type EntryType = 'expense' | 'income';
 export type ReportPeriod = 'week' | 'month' | 'year';
+export type AnalyticsPeriod = ReportPeriod | 'custom';
+export type AnalyticsGroupBy = 'day' | 'week' | 'month';
+
+export interface AnalyticsQuery {
+  period: AnalyticsPeriod;
+  startDate?: string;
+  endDate?: string;
+  entryTypes?: EntryType[];
+  categoryIds?: string[];
+  searchText?: string;
+  groupBy?: AnalyticsGroupBy;
+}
 
 export interface User {
   user_id: string;

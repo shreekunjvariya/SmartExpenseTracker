@@ -1,7 +1,9 @@
 <div class="page" data-testid="reports-page">
   <header class="page-header">
-    <h1>Reports</h1>
-    <p>Analyze spending patterns and export data</p>
+    <div>
+      <h1>Reports</h1>
+      <p>Analyze and export your expenses and income.</p>
+    </div>
   </header>
 
   <p class="error" *ngIf="error">{{ error }}</p>
@@ -20,45 +22,85 @@
   </nav>
 
   <section *ngIf="activeTab === 'overview'" class="tab-panel">
-    <div class="period-switch">
-      <button
-        type="button"
-        *ngFor="let value of ['week', 'month', 'year']"
-        [class.active]="period === value"
-        (click)="setPeriodFromString(value)"
-        [attr.data-testid]="'period-' + value"
-      >
-        {{ value | titlecase }}
-      </button>
-    </div>
+    <article class="card filters-card">
+      <div class="period-switch">
+        <button
+          type="button"
+          *ngFor="let value of ['week', 'month', 'year', 'custom']"
+          [class.active]="period === value"
+          (click)="setPeriodFromString(value)"
+          [attr.data-testid]="'period-' + value"
+        >
+          {{ value | titlecase }}
+        </button>
+      </div>
+
+      <div class="filter-grid">
+        <div class="field" *ngIf="period === 'custom'">
+          <label for="filterStartDate">Custom Start</label>
+          <input id="filterStartDate" type="date" [(ngModel)]="filterStartDate" (ngModelChange)="recomputeSummary()" />
+        </div>
+        <div class="field" *ngIf="period === 'custom'">
+          <label for="filterEndDate">Custom End</label>
+          <input id="filterEndDate" type="date" [(ngModel)]="filterEndDate" (ngModelChange)="recomputeSummary()" />
+        </div>
+
+        <div class="field search-field">
+          <label for="reportSearch">Search</label>
+          <input
+            id="reportSearch"
+            type="search"
+            [ngModel]="searchTerm"
+            (ngModelChange)="onSearchChange($event)"
+            placeholder="Category or transaction name"
+            data-testid="reports-search-input"
+          />
+        </div>
+
+        <div class="field">
+          <label>Type</label>
+          <div class="entry-types">
+            <label>
+              <input
+                type="checkbox"
+                [checked]="selectedEntryTypes.includes('expense')"
+                (change)="onEntryTypeToggle('expense', $any($event.target).checked)"
+              />
+              Expense
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                [checked]="selectedEntryTypes.includes('income')"
+                (change)="onEntryTypeToggle('income', $any($event.target).checked)"
+              />
+              Income
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="category-filter" *ngIf="categoryOptions.length">
+        <p>Categories</p>
+        <div class="category-options">
+          <label *ngFor="let category of categoryOptions; trackBy: trackByCategory">
+            <input
+              type="checkbox"
+              [checked]="selectedCategoryIds.includes(category.id)"
+              (change)="onCategoryToggle(category.id, $any($event.target).checked)"
+            />
+            {{ category.name }}
+          </label>
+        </div>
+      </div>
+
+      <button type="button" class="btn-secondary" (click)="clearFilters()">Reset Filters</button>
+    </article>
 
     <div class="reports-skeleton" *ngIf="loading" aria-label="Loading report data">
       <div class="skeleton-summary-grid">
-        <article class="skeleton-summary-card" *ngFor="let _ of [1, 2, 3]">
-          <span class="skeleton skeleton-line skeleton-line-sm"></span>
-          <span class="skeleton skeleton-line skeleton-line-lg"></span>
-          <span class="skeleton skeleton-line skeleton-line-md"></span>
-        </article>
+        <article class="skeleton-summary-card" *ngFor="let _ of [1, 2, 3]"></article>
       </div>
-
-      <article class="skeleton-breakdown-card">
-        <span class="skeleton skeleton-line skeleton-line-sm"></span>
-        <div class="skeleton-breakdown-list">
-          <div class="skeleton-breakdown-row" *ngFor="let _ of [1, 2, 3, 4]">
-            <div class="skeleton-breakdown-left">
-              <span class="skeleton skeleton-dot"></span>
-              <div class="skeleton-breakdown-copy">
-                <span class="skeleton skeleton-line skeleton-line-md"></span>
-                <span class="skeleton skeleton-line skeleton-line-sm"></span>
-              </div>
-            </div>
-            <div class="skeleton-breakdown-right">
-              <span class="skeleton skeleton-line skeleton-total"></span>
-              <span class="skeleton skeleton-line skeleton-percent"></span>
-            </div>
-          </div>
-        </div>
-      </article>
     </div>
 
     <ng-container *ngIf="!loading">
@@ -82,33 +124,83 @@
         </article>
       </div>
 
-      <article class="card">
-        <h2>Detailed Breakdown</h2>
-        <div class="empty" *ngIf="!categoryBreakdown.length">No transaction data for this period.</div>
+      <div class="chart-grid">
+        <article class="card">
+          <div class="card-head">
+            <h2>Cashflow Trend</h2>
+            <select [(ngModel)]="chartType">
+              <option value="line">Line</option>
+              <option value="bar">Bar</option>
+            </select>
+          </div>
 
-        <div class="category-list" *ngIf="categoryBreakdown.length">
-          <div class="category-item" *ngFor="let category of categoryBreakdown">
-            <div class="left">
-              <span class="dot" [style.backgroundColor]="category.color || '#064E3B'"></span>
-              <div>
-                <p>
-                  {{ category.name }}
-                  <small class="type-chip" [class.income]="category.entry_type === 'income'" [class.expense]="category.entry_type !== 'income'">
-                    {{ typeLabel(category.entry_type) }}
-                  </small>
-                </p>
-                <small>{{ category.count }} transactions</small>
+          <div class="empty" *ngIf="!trendPoints.length">No transaction data for selected filters.</div>
+
+          <div *ngIf="trendPoints.length && chartType === 'bar'" class="trend-bars">
+            <div class="bar-item" *ngFor="let point of trendPoints">
+              <div class="bar-track">
+                <span class="bar-fill" [class.negative]="point.value < 0" [style.height.%]="(Math.abs(point.value) / maxTrendValue) * 100"></span>
               </div>
-            </div>
-            <div class="right">
-              <strong [class.value-income]="category.entry_type === 'income'" [class.value-expense]="category.entry_type !== 'income'">
-                {{ formatSignedAmount(category.total, category.entry_type) }}
-              </strong>
-              <small>{{ categoryPercent(category) }}% of {{ typeLabel(category.entry_type).toLowerCase() }}</small>
+              <small>{{ point.date.slice(5) }}</small>
             </div>
           </div>
-        </div>
-      </article>
+
+          <div *ngIf="trendPoints.length && chartType === 'line'" class="line-chart-wrap">
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="Cashflow line chart">
+              <polyline [attr.points]="lineChartPoints" fill="none" stroke="#064E3B" stroke-width="2"></polyline>
+            </svg>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <h2>Category Breakdown</h2>
+            <select [(ngModel)]="breakdownChartType">
+              <option value="donut">Donut</option>
+              <option value="bar">Bar</option>
+            </select>
+          </div>
+
+          <div class="empty" *ngIf="!categoryBreakdown.length">No transaction data for selected filters.</div>
+
+          <div *ngIf="categoryBreakdown.length && breakdownChartType === 'donut'" class="donut-wrap">
+            <div class="donut" [style.background]="donutStyle"></div>
+          </div>
+
+          <div *ngIf="categoryBreakdown.length && breakdownChartType === 'bar'" class="category-bars">
+            <div class="category-row" *ngFor="let category of categoryBreakdown">
+              <div class="category-head">
+                <span>{{ category.name }}</span>
+                <strong>{{ formatSignedAmount(category.total, category.entry_type) }}</strong>
+              </div>
+              <div class="category-progress">
+                <span [style.width.%]="categoryPercent(category)" [style.backgroundColor]="category.color || '#064E3B'"></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="category-list" *ngIf="categoryBreakdown.length">
+            <div class="category-item" *ngFor="let category of categoryBreakdown.slice(0, 6)">
+              <div class="left">
+                <span class="dot" [style.backgroundColor]="category.color || '#064E3B'"></span>
+                <div>
+                  <p>
+                    {{ category.name }}
+                    <small class="type-chip" [class.income]="category.entry_type === 'income'" [class.expense]="category.entry_type !== 'income'">
+                      {{ typeLabel(category.entry_type) }}
+                    </small>
+                  </p>
+                </div>
+              </div>
+              <div class="right">
+                <strong [class.value-income]="category.entry_type === 'income'" [class.value-expense]="category.entry_type !== 'income'">
+                  {{ formatSignedAmount(category.total, category.entry_type) }}
+                </strong>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
     </ng-container>
   </section>
 
@@ -129,11 +221,6 @@
       </div>
 
       <button type="button" class="btn-primary" (click)="exportCsv()" data-testid="export-btn">Download CSV</button>
-
-      <div class="hint">
-        <p>CSV Format:</p>
-        <code>Date,Description,Amount,Type,Currency,Category,Subcategory</code>
-      </div>
     </article>
   </section>
 

@@ -128,6 +128,10 @@ export class AnalyticsService {
     return request$;
   }
 
+  getSnapshotData(forceRefresh = false): Observable<AnalyticsSnapshot> {
+    return this.getSnapshot(forceRefresh);
+  }
+
   invalidateCache(): void {
     this.snapshotCache$ = null;
     this.snapshotFetchedAt = 0;

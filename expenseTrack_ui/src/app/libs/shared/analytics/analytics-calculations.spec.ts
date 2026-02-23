@@ -2,29 +2,31 @@ import { Category, Expense } from '../../../../models';
 import {
   buildCategoryLookup,
   buildDashboardStats,
+  buildFilteredReportSummary,
   buildReportSummary,
+  createAnalyticsSnapshot,
+  filterTransactions,
   prepareTransactions,
 } from './analytics-calculations';
 
-const NOW_MS = Date.UTC(2026, 1, 21, 12, 0, 0, 0);
-const DAY_MS = 24 * 60 * 60 * 1000;
+const NOW_MS = Date.parse('2025-01-15T00:00:00.000Z');
 
-function isoDaysAgo(days: number): string {
-  return new Date(NOW_MS - days * DAY_MS).toISOString();
+function isoDaysAgo(daysAgo: number): string {
+  return new Date(NOW_MS - daysAgo * 24 * 60 * 60 * 1000).toISOString();
 }
 
-function makeExpense(partial: Partial<Expense> = {}): Expense {
+function makeExpense(partial: Partial<Expense>): Expense {
   return {
-    expense_id: partial.expense_id || `exp_${Math.random().toString(16).slice(2)}`,
+    expense_id: partial.expense_id || `exp_${Math.random().toString(36).slice(2)}`,
     user_id: partial.user_id || 'u1',
-    category_id: partial.category_id || 'cat_food',
-    subcategory_id: partial.subcategory_id || null,
-    entry_type: partial.entry_type || 'expense',
     amount: partial.amount ?? 0,
     currency: partial.currency || 'USD',
-    date: partial.date || isoDaysAgo(0),
-    description: partial.description || 'test',
-    created_at: partial.created_at || isoDaysAgo(0),
+    description: partial.description || 'Expense',
+    category_id: partial.category_id || 'cat_food',
+    subcategory_id: partial.subcategory_id ?? null,
+    entry_type: partial.entry_type || 'expense',
+    date: partial.date || isoDaysAgo(1),
+    created_at: partial.created_at || isoDaysAgo(1),
   };
 }
 
@@ -90,6 +92,50 @@ describe('analytics-calculations', () => {
     expect(salary?.total).toBe(250);
     expect(salary?.entry_type).toBe('income');
     expect(summary.daily_trend).toHaveLength(3);
+  });
+
+  it('filters transactions by category, type, search and custom date range', () => {
+    const expenses: Expense[] = [
+      makeExpense({ amount: 100, entry_type: 'expense', category_id: 'cat_food', description: 'Dinner', date: isoDaysAgo(1) }),
+      makeExpense({ amount: 250, entry_type: 'income', category_id: 'cat_salary', description: 'Monthly Salary', date: isoDaysAgo(2) }),
+      makeExpense({ amount: 55, entry_type: 'expense', category_id: 'cat_food', description: 'Groceries', date: isoDaysAgo(7) }),
+      makeExpense({ amount: 80, entry_type: 'expense', category_id: 'cat_food', description: 'Old Expense', date: isoDaysAgo(50) }),
+    ];
+
+    const snapshot = createAnalyticsSnapshot(expenses, categories, 'USD');
+    const filtered = filterTransactions(
+      snapshot,
+      {
+        period: 'custom',
+        startDate: isoDaysAgo(10).slice(0, 10),
+        endDate: isoDaysAgo(0).slice(0, 10),
+        entryTypes: ['expense'],
+        categoryIds: ['cat_food'],
+        searchText: 'gro',
+      },
+      NOW_MS
+    );
+
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].amount).toBe(55);
+  });
+
+  it('builds filtered summary from snapshot query', () => {
+    const expenses: Expense[] = [
+      makeExpense({ amount: 1400, entry_type: 'income', category_id: 'cat_salary', description: 'Salary', date: isoDaysAgo(3) }),
+      makeExpense({ amount: 120, entry_type: 'expense', category_id: 'cat_food', description: 'Food', date: isoDaysAgo(2) }),
+    ];
+
+    const snapshot = createAnalyticsSnapshot(expenses, categories, 'USD');
+    const summary = buildFilteredReportSummary(
+      snapshot,
+      { period: 'month', entryTypes: ['income'], searchText: 'salary' },
+      NOW_MS
+    );
+
+    expect(summary.income_total).toBe(1400);
+    expect(summary.expense_total).toBe(0);
+    expect(summary.net_total).toBe(1400);
   });
 
   it('builds dashboard stats using rolling month windows', () => {

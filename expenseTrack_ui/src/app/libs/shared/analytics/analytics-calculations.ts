@@ -1,4 +1,5 @@
 import {
+  AnalyticsQuery,
   Category,
   DashboardStats,
   EntryType,
@@ -28,6 +29,7 @@ export type PreparedExpense = {
   amount: number;
   entry_type: EntryType;
   category_id: string;
+  description: string;
   date: string;
   timestamp: number;
 };
@@ -59,9 +61,57 @@ export function prepareTransactions(expenses: Expense[]): PreparedExpense[] {
       amount: toFiniteNumber(expense.amount),
       entry_type: normalizeEntryType(expense.entry_type),
       category_id: expense.category_id || '',
+      description: (expense.description || '').toLowerCase(),
       date: normalizeDateString(expense.date || '', timestamp),
       timestamp,
     };
+  });
+}
+
+export function buildFilteredReportSummary(
+  snapshot: AnalyticsSnapshot,
+  query: AnalyticsQuery,
+  nowMs: number = Date.now()
+): ReportSummary {
+  const filteredTransactions = filterTransactions(snapshot, query, nowMs);
+  const period = query.period === 'custom' ? 'month' : query.period;
+  return buildSummaryFromTransactions(
+    filteredTransactions,
+    snapshot.categoriesById,
+    period,
+    snapshot.currency
+  );
+}
+
+export function filterTransactions(
+  snapshot: AnalyticsSnapshot,
+  query: AnalyticsQuery,
+  nowMs: number = Date.now()
+): PreparedExpense[] {
+  const normalizedSearch = (query.searchText || '').trim().toLowerCase();
+  const selectedEntryTypes = new Set(query.entryTypes || []);
+  const selectedCategoryIds = new Set(query.categoryIds || []);
+  const range = buildRangeWindow(query, nowMs);
+
+  return snapshot.transactions.filter((tx) => {
+    if (!isInRange(tx.timestamp, range.startMs, range.endMs)) {
+      return false;
+    }
+
+    if (selectedEntryTypes.size && !selectedEntryTypes.has(tx.entry_type)) {
+      return false;
+    }
+
+    if (selectedCategoryIds.size && !selectedCategoryIds.has(tx.category_id)) {
+      return false;
+    }
+
+    if (!normalizedSearch) {
+      return true;
+    }
+
+    const categoryName = snapshot.categoriesById.get(tx.category_id)?.name?.toLowerCase() || '';
+    return tx.description.includes(normalizedSearch) || categoryName.includes(normalizedSearch);
   });
 }
 
@@ -97,6 +147,15 @@ export function buildReportSummary(
   nowMs: number = Date.now()
 ): ReportSummary {
   const periodTransactions = transactions.filter((tx) => isInPeriod(tx, period, nowMs));
+  return buildSummaryFromTransactions(periodTransactions, categoriesById, period, currency);
+}
+
+function buildSummaryFromTransactions(
+  periodTransactions: PreparedExpense[],
+  categoriesById: Map<string, CategoryLookupEntry>,
+  period: ReportPeriod,
+  currency: string
+): ReportSummary {
   const totals = splitTotals(periodTransactions);
 
   const byCategoryMap = new Map<string, ReportCategorySummary>();
@@ -166,6 +225,27 @@ export function buildReportSummary(
     period,
     currency: currency || DEFAULT_CURRENCY,
   };
+}
+
+function buildRangeWindow(query: AnalyticsQuery, nowMs: number): { startMs: number; endMs: number } {
+  if (query.period === 'custom') {
+    const startMs = Date.parse(query.startDate || '');
+    const endMs = Date.parse(query.endDate || '');
+    return {
+      startMs: Number.isFinite(startMs) ? startMs : Number.NEGATIVE_INFINITY,
+      endMs: Number.isFinite(endMs) ? endMs + MS_PER_DAY : Number.POSITIVE_INFINITY,
+    };
+  }
+
+  const startMs = nowMs - PERIOD_DAY_COUNT[query.period] * MS_PER_DAY;
+  return { startMs, endMs: Number.POSITIVE_INFINITY };
+}
+
+function isInRange(timestamp: number, startMs: number, endMs: number): boolean {
+  if (!Number.isFinite(timestamp)) {
+    return false;
+  }
+  return timestamp >= startMs && timestamp < endMs;
 }
 
 export function buildDashboardStats(

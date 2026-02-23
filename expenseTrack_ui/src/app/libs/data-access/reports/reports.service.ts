@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../../environments/environment';
 import { Observable, tap } from 'rxjs';
+import { AnalyticsSnapshot } from '../../shared/analytics/analytics-calculations';
 import { ReportPeriod, ReportSummary } from '../../../../models';
 import { AnalyticsService } from '../analytics/analytics.service';
 
@@ -13,6 +14,11 @@ export class ReportsService {
 
   getSummary(period: ReportPeriod, forceRefresh = false): Observable<ReportSummary> {
     return this.analytics.getReportSummary(period, forceRefresh);
+  }
+
+
+  getAnalyticsSnapshot(forceRefresh = false): Observable<AnalyticsSnapshot> {
+    return this.analytics.getSnapshotData(forceRefresh);
   }
 
   exportCsv(start: string, end: string): Observable<Blob> {
